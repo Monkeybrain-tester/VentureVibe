@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import MapComponent from "../components/Map";
 import AddMarkerComponent from "../components/AddMarkers";
 
@@ -8,7 +8,13 @@ type MapMarker = {
 };
 
 function MapPage() {
-    const [markers, setMarkers] = useState([{ lat: 29.6516, lng: -82.3248 }]);
+    const [markers, setMarkers] = useState<MapMarker[]>([]);
+
+    useEffect(() => {
+        fetch("http://localhost:8000/markers")
+            .then((response) => response.json())
+            .then((data) => setMarkers(data.markers));
+    }, []);
 
     const handleAddMarker = (marker: MapMarker) => {
         setMarkers((prev) => [...prev, marker]);
