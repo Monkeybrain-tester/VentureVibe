@@ -1,4 +1,4 @@
-import { GoogleMap, LoadScript, Marker } from '@react-google-maps/api';
+import { APIProvider, Map, Marker } from '@vis.gl/react-google-maps';
 
 const containerStyle = {
   width: '400px',
@@ -11,17 +11,33 @@ const center = {
   lng: -82.3248
 };
 
-function MapComponent() {
+const apikey = import.meta.env.VITE_Key
+
+type MapMarker = {
+  lat: number;
+  lng: number;
+};
+
+type MapComponentProps = {
+  markers?: MapMarker[];
+};
+
+function MapComponent(props: MapComponentProps) {
+  const markers = props.markers
   return (
-    <LoadScript googleMapsApiKey="AIzaSyCq1qxujv1Za96KIc4srGxQlWBTu6tY8oU">
-      <GoogleMap
-        mapContainerStyle={containerStyle}
-        center={center}
-        zoom={12}
+    <APIProvider apiKey={apikey}>
+      <Map
+        style={containerStyle}
+        defaultCenter={center}
+        defaultZoom={12}
+        gestureHandling='greedy'
+        disableDefaultUI
       >
-        <Marker position={center} />
-      </GoogleMap>
-    </LoadScript>
+        {markers?.map((marker, index) => (
+          <Marker key={index} position={marker} />
+        ))}
+      </Map>
+    </APIProvider>
   );
 }
 
