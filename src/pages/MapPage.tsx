@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import MapComponent from "../components/Map";
 import AddMarkerComponent from "../components/AddMarkers";
+import { useAuth } from "../AuthContext";
 
 type MapMarker = {
     lat: number;
@@ -9,6 +10,7 @@ type MapMarker = {
 
 function MapPage() {
     const [markers, setMarkers] = useState<MapMarker[]>([]);
+    const { signOut } = useAuth();
 
     useEffect(() => {
         fetch("http://localhost:8000/markers")
@@ -22,6 +24,7 @@ function MapPage() {
 
     return (
         <>
+            <button onClick={signOut} style={{ position: 'fixed', top: '1rem', right: '1rem' }}>Logout</button>
             <p>My Map</p>
             <MapComponent markers={markers} />
             <AddMarkerComponent onAddMarker={handleAddMarker} />
