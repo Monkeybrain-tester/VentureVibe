@@ -241,7 +241,7 @@ def fetch_trip_media_map(cur, leg_ids: List[str]):
         """
         SELECT leg_id, media_url
         FROM trip_leg_media
-        WHERE leg_id = ANY(%s)
+        WHERE leg_id = ANY(%s::uuid[])
         ORDER BY id
         """,
         (leg_ids,),
