@@ -1,6 +1,7 @@
 import MapPage from './pages/MapPage';
 import AuthPage from './pages/AuthPage';
 import ProfilePage from './pages/ProfilePage';
+import EditProfilePage from './pages/EditProfilePage';
 import MakeTripPage from './pages/MakeTripPage';
 import FriendsPage from './pages/FriendsPage';
 import TripDetailPage from './pages/TripDetailPage';
@@ -33,6 +34,15 @@ function App() {
           element={
             <ProtectedRoute>
               <ProfilePage />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/profile/edit"
+          element={
+            <ProtectedRoute>
+              <EditProfilePage />
             </ProtectedRoute>
           }
         />

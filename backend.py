@@ -208,6 +208,16 @@ class FriendRequestUpdate(BaseModel):
     status: Literal["accepted", "declined"]
 
 
+class UserProfileUpdate(BaseModel):
+    display_name: Optional[str] = None
+    tagline: Optional[str] = None
+    date_of_birth: Optional[str] = None
+    city: Optional[str] = None
+    country: Optional[str] = None
+    cover_photo_url: Optional[str] = None
+    website: Optional[str] = None
+
+
 # =========================
 # serialization helpers
 # =========================
@@ -922,6 +932,114 @@ async def update_friend_request(request_id: str, update: FriendRequestUpdate):
                 "receiver_username": row["receiver_username"],
                 "status": row["status"],
                 "created_at": row["created_at"].isoformat() if row["created_at"] else None,
+            }
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+@app.get("/user-profiles/{user_id}")
+async def get_user_profile(user_id: str):
+    """Get user profile data from user_profiles table"""
+    if USE_DUMMY_DATA:
+        raise HTTPException(status_code=501, detail="user profiles not implemented in dummy mode")
+
+    conn = get_conn()
+    try:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(
+                """
+                SELECT user_id, display_name, tagline, date_of_birth,
+                       city, country, cover_photo_url, website
+                FROM user_profiles
+                WHERE user_id = %s
+                """,
+                (user_id,),
+            )
+            row = cur.fetchone()
+            if not row:
+                raise HTTPException(status_code=404, detail="user profile not found")
+
+            return {
+                "user_id": str(row["user_id"]),
+                "display_name": row.get("display_name") or "",
+                "tagline": row.get("tagline") or "",
+                "date_of_birth": row["date_of_birth"].isoformat() if row.get("date_of_birth") else None,
+                "city": row.get("city") or "",
+                "country": row.get("country") or "",
+                "cover_photo_url": row.get("cover_photo_url") or "",
+                "website": row.get("website") or "",
+            }
+    finally:
+        conn.close()
+
+
+@app.put("/user-profiles/{user_id}")
+async def update_user_profile(user_id: str, profile: UserProfileUpdate):
+    """Update user profile data"""
+    if USE_DUMMY_DATA:
+        raise HTTPException(status_code=501, detail="user profiles not implemented in dummy mode")
+
+    conn = get_conn()
+    try:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            # Build dynamic update query based on provided fields
+            update_fields = []
+            values = []
+
+            if profile.display_name is not None:
+                update_fields.append("display_name = %s")
+                values.append(profile.display_name)
+            if profile.tagline is not None:
+                update_fields.append("tagline = %s")
+                values.append(profile.tagline)
+            if profile.date_of_birth is not None:
+                update_fields.append("date_of_birth = %s")
+                values.append(profile.date_of_birth if profile.date_of_birth else None)
+            if profile.city is not None:
+                update_fields.append("city = %s")
+                values.append(profile.city)
+            if profile.country is not None:
+                update_fields.append("country = %s")
+                values.append(profile.country)
+            if profile.cover_photo_url is not None:
+                update_fields.append("cover_photo_url = %s")
+                values.append(profile.cover_photo_url)
+            if profile.website is not None:
+                update_fields.append("website = %s")
+                values.append(profile.website)
+
+            if not update_fields:
+                raise HTTPException(status_code=400, detail="no fields to update")
+
+            values.append(user_id)
+            query = f"""
+                UPDATE user_profiles
+                SET {', '.join(update_fields)}
+                WHERE user_id = %s
+                RETURNING user_id, display_name, tagline, date_of_birth,
+                          city, country, cover_photo_url, website
+            """
+
+            cur.execute(query, values)
+            row = cur.fetchone()
+
+            if not row:
+                raise HTTPException(status_code=404, detail="user profile not found")
+
+            conn.commit()
+
+            return {
+                "user_id": str(row["user_id"]),
+                "display_name": row.get("display_name") or "",
+                "tagline": row.get("tagline") or "",
+                "date_of_birth": row["date_of_birth"].isoformat() if row.get("date_of_birth") else None,
+                "city": row.get("city") or "",
+                "country": row.get("country") or "",
+                "cover_photo_url": row.get("cover_photo_url") or "",
+                "website": row.get("website") or "",
             }
     except Exception:
         conn.rollback()
