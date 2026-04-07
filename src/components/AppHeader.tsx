@@ -42,25 +42,27 @@ function AppHeader() {
       >
         <div style={{ fontWeight: 700, fontSize: '1.1rem' }}>VentureVibe</div>
 
-        <nav style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
-          <Link to={profilePath}>
-            <button>profile</button>
-          </Link>
+        <div style={{ display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap' }}>
+          <nav style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+            <Link to={profilePath}>
+              <button>profile</button>
+            </Link>
 
-          <Link to="/trips/new">
-            <button>make trip</button>
-          </Link>
+            <Link to="/trips/new">
+              <button>make trip</button>
+            </Link>
 
-          <Link to="/friends">
-            <button>friends</button>
-          </Link>
+            <Link to="/friends">
+              <button>friends</button>
+            </Link>
 
-          <Link to="/map">
-            <button>map</button>
-          </Link>
+            <Link to="/map">
+              <button>map</button>
+            </Link>
+          </nav>
 
           {user && <button onClick={handleLogout}>logout</button>}
-        </nav>
+        </div>
       </div>
     </header>
   );
