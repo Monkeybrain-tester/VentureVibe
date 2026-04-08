@@ -94,3 +94,7 @@ button:focus-visible {
 .gm-ui-hover-effect {
   filter: invert(1); /* makes the X visible on dark UI */
 }
+
+.pac-container {
+  z-index: 10000 !important;
+}
