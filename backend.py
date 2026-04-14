@@ -241,7 +241,7 @@ def fetch_trip_media_map(cur, leg_ids: List[str]):
         """
         SELECT leg_id, media_url
         FROM trip_leg_media
-        WHERE leg_id = ANY(%s)
+        WHERE leg_id = ANY(%s::uuid[])
         ORDER BY id
         """,
         (leg_ids,),
@@ -619,7 +619,7 @@ async def update_trip(trip_id: str, trip: TripCreate):
             old_leg_ids = [str(row["id"]) for row in cur.fetchall()]
 
             if old_leg_ids:
-                cur.execute("DELETE FROM trip_leg_media WHERE leg_id = ANY(%s)", (old_leg_ids,))
+                cur.execute("DELETE FROM trip_leg_media WHERE leg_id = ANY(%s::uuid[])", (old_leg_ids,))
             cur.execute("DELETE FROM trip_legs WHERE trip_id = %s", (trip_id,))
 
             for leg in trip.legs:
