@@ -6,6 +6,7 @@ import MakeTripPage from './pages/MakeTripPage';
 import FriendsPage from './pages/FriendsPage';
 import TripDetailPage from './pages/TripDetailPage';
 import EditTripPage from './pages/EditTripPage';
+import ForYouPage from './pages/ForYouPage';
 import './App.css';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './AuthContext';
@@ -97,6 +98,15 @@ function App() {
           element={
             <ProtectedRoute>
               <MapPage />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/fyp"
+          element={
+            <ProtectedRoute>
+              <ForYouPage />
             </ProtectedRoute>
           }
         />

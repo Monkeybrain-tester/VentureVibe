@@ -4,6 +4,7 @@ import { useAuth } from '../AuthContext';
 import { apiFetch } from '../lib/api';
 import type { Trip } from '../types';
 import AppHeader from '../components/AppHeader';
+import PostComponent from '../components/Post';
 
 const isDummyMode = import.meta.env.VITE_APP_MODE === 'dummy';
 
@@ -128,6 +129,7 @@ function ProfilePage() {
       ) : (
         <div style={{ display: 'grid', gap: 16 }}>
           {trips.map((trip) => (
+            <div key={trip.id}>
             <Link
               key={trip.id}
               to={`/trips/${trip.id}`}
@@ -144,6 +146,10 @@ function ProfilePage() {
               <p style={{ margin: '8px 0' }}>visibility: {trip.visibility}</p>
               <p style={{ margin: '8px 0' }}>legs: {trip.legs?.length ?? 0}</p>
             </Link>
+            {trip.legs?.map((leg) => (
+              leg.media_urls.length > 0 && <PostComponent key={leg.id} title={trip.title} content={leg.caption || 'No caption'} tripLeg={leg} />
+            ))}
+            </div>
           ))}
         </div>
       )}
