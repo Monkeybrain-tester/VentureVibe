@@ -43,7 +43,7 @@ function AppHeader() {
         <div style={{ fontWeight: 700, fontSize: '1.1rem' }}>VentureVibe</div>
 
         <div style={{ display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap' }}>
-          <nav style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+          <nav style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>           
             <Link to={profilePath}>
               <button>profile</button>
             </Link>
@@ -58,6 +58,10 @@ function AppHeader() {
 
             <Link to="/map">
               <button>map</button>
+            </Link>
+
+            <Link to="/fyp">
+              <button>for you</button>
             </Link>
           </nav>
 

@@ -1,12 +1,23 @@
 import { useState, useEffect } from "react";
 import MapComponent from "../components/Map";
-import AddMarkerComponent from "../components/AddMarkers";
 import AppHeader from "../components/AppHeader";
 import type { FriendUser } from "../types";
 import { useAuth } from "../AuthContext";
 import { apiFetch } from "../lib/api";
 import type { Trip } from "../types";
-import { APIProvider } from "@vis.gl/react-google-maps";
+import { useSearchParams } from 'react-router-dom';
+
+function GetCenter() {
+  const [searchParams] = useSearchParams();
+  const center = searchParams.get('lat') && searchParams.get('lng') ? {
+    lat: parseFloat(searchParams.get('lat')!),
+    lng: parseFloat(searchParams.get('lng')!)
+  } : {
+  lat: 29.6516,
+  lng: -82.3248
+};
+  return center;
+}
 
 const apiKey = import.meta.env.VITE_Key;
 
@@ -47,7 +58,7 @@ function MapPage() {
   return (
     <>
       <AppHeader />
-      <MapComponent trips={trips}/>
+      <MapComponent trips={trips} center={GetCenter()} />
     </>
   );
 }
