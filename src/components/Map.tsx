@@ -1,7 +1,7 @@
-import { AdvancedMarker, APIProvider, Map, Marker, Pin } from '@vis.gl/react-google-maps';
+import { InfoWindow, APIProvider, Map, Marker } from '@vis.gl/react-google-maps';
 import type { Trip } from '../types';
 import Polyline from '../components/Polyline';
-import type { TripLeg } from '../types';
+import { useState } from 'react';
 
 //Set to user's location or default (currently Gainesville)
 const center = {
@@ -19,6 +19,24 @@ type MapTripProps = {
   };
 };
 
+type SelectedPoint =
+  | {
+      type: 'start';
+      lat: number;
+      lng: number;
+      title: string;
+      description?: string;
+    }
+  | {
+      type: 'leg';
+      lat: number;
+      lng: number;
+      title: string;
+      description?: string;
+      start_time?: string;
+      media_urls?: string[];
+    };
+
 function getRoutePoints(trip: Trip) {
   if (!trip) return [];
   const sortedLegs = [...trip.legs].sort((a, b) => a.order_index - b.order_index);
@@ -30,11 +48,34 @@ function getRoutePoints(trip: Trip) {
 
 function MapComponent(props: MapTripProps) {
   const markers = props.trips?.flatMap((trip) => [
-    { lat: trip.start_lat, lng: trip.start_lng },
-    ...trip.legs.map((leg) => ({ lat: leg.lat, lng: leg.lng }))
+    {
+      lat: trip.start_lat,
+      lng: trip.start_lng,
+      type: 'start',
+      title: trip.start_location_name,
+      description: trip.description || 'Trip starting point',
+      tripId: trip.id,
+      index: -1,
+      leg_start_time: undefined,
+      leg_media_urls: undefined,
+    },
+    ...[...trip.legs]
+      .sort((a, b) => a.order_index - b.order_index)
+      .map((leg) => ({
+        lat: leg.lat,
+        lng: leg.lng,
+        type: 'leg',
+        tripId: trip.id,
+        index: leg.order_index,
+        title: leg.location_name,
+        description: leg.caption || 'No caption provided',
+        leg_media_urls: leg.media_urls,
+        leg_start_time: leg.start_time || 'Not specified',
+      })),
   ]);
 
   const allRoutePoints = props.trips?.map(getRoutePoints);
+  const [selectedPoint, setSelectedPoint] = useState<SelectedPoint | null>(null);
 
   return (
     <div
@@ -92,15 +133,64 @@ function MapComponent(props: MapTripProps) {
               ))}
 
               {markers?.map((marker, index) => (
-                <AdvancedMarker key={index} position={marker} >
-                  <Pin
-                    background={'#0f9d58'}
-                    borderColor={'#006425'}
-                    glyphColor={'#60d98f'}
-                  />
-                </AdvancedMarker>
-
+                <Marker
+                  key={index} 
+                  position={marker} 
+                  onClick={() => {
+                      if (marker.type === 'start') {
+                        setSelectedPoint({
+                          type: 'start',
+                          lat: marker.lat,
+                          lng: marker.lng,
+                          title: marker.title,
+                          description: marker.description,
+                        });
+                      } else if (marker.type === 'leg') {
+                        setSelectedPoint({
+                          type: 'leg',
+                          lat: marker.lat,
+                          lng: marker.lng,
+                          title: marker.title,
+                          description: marker.description,
+                          start_time: marker.leg_start_time,
+                          media_urls: marker.leg_media_urls,
+                        });
+                      }
+                    }
+                  }
+                /> 
               ))}
+
+              {selectedPoint && (
+                  <InfoWindow
+                    position={{ lat: selectedPoint.lat, lng: selectedPoint.lng }}
+                    onCloseClick={() => setSelectedPoint(null)}
+                  >
+                    <div style={{ color: '#111', maxWidth: 240 }}>
+                      <h3 style={{ marginTop: 0, marginBottom: 8 }}>{selectedPoint.title}</h3>
+
+                      {selectedPoint.type === 'start' ? (
+                        <p style={{ margin: 0 }}>{selectedPoint.description}</p>
+                      ) : (
+                        <>
+                          <p style={{ margin: '0 0 8px 0' }}>
+                            <strong>time:</strong> {selectedPoint.start_time && selectedPoint.start_time != 'Not specified' ? new Date(selectedPoint.start_time).toLocaleDateString() : 'Not specified'}
+                          </p>
+
+                          <p style={{ margin: '0 0 8px 0' }}>
+                            <strong>caption:</strong> {selectedPoint.description || 'No caption provided'}
+                          </p>
+
+                          {((selectedPoint.media_urls && selectedPoint.media_urls.length > 0) || (selectedPoint.description != 'No caption provided')) && (
+                            <div>
+                              <button>See Post</button>
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  </InfoWindow>
+                )}
             </Map>
           </APIProvider>
         </div>
