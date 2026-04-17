@@ -13,6 +13,10 @@ const apikey = import.meta.env.VITE_Key
 
 type MapTripProps = {
   trips?: Trip[];
+  center?: {
+    lat: number;
+    lng: number;
+  };
 };
 
 function getRoutePoints(trip: Trip) {
@@ -77,7 +81,7 @@ function MapComponent(props: MapTripProps) {
           <APIProvider apiKey={apikey}>
             <Map
               style={{ width: '100%', height: '100%' }}
-              defaultCenter={center}
+              defaultCenter={props.center || center}
               defaultZoom={12}
               gestureHandling="greedy"
               disableDefaultUI
