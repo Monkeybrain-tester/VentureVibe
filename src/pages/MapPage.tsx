@@ -39,7 +39,6 @@ function MapPage() {
         setFriends(friendsData);
         for (const friend of friendsData) {
           const friendTrips = await apiFetch<Trip[]>(`/profiles/${friend.id}/trips`);
-          console.log(`Trips for friend ${friend.username}:`, friendTrips);
           for (const trip of friendTrips) {
             setTrips((prev) => [...prev, trip]);
           }
