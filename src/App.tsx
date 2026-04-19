@@ -10,6 +10,8 @@ import EditProfilePage from './pages/EditProfilePage';
 import './App.css';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './AuthContext';
+import LegDetailPage from './pages/LegDetailPage';
+
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
@@ -44,6 +46,15 @@ function App() {
           element={
             <ProtectedRoute>
               <ProfilePage />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/trips/:tripId/legs/:legId"
+          element={
+            <ProtectedRoute>
+              <LegDetailPage />
             </ProtectedRoute>
           }
         />

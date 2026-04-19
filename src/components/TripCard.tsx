@@ -1,4 +1,5 @@
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import { useEffect, useState } from 'react';
 import type { Trip } from '../types';
 
 type TripWithAuthor = Trip & {
@@ -27,19 +28,59 @@ function TripCard({
   authorAvatarUrl,
   thumbnailUrl,
 }: TripCardProps) {
+  const navigate = useNavigate();
+  const [avatarFailed, setAvatarFailed] = useState(false);
+
   const resolvedAuthorId = authorId || trip.author_id || trip.user_id;
   const resolvedAuthorName = authorName || trip.author_username || 'unknown user';
   const resolvedAuthorAvatar = authorAvatarUrl || trip.author_avatar_url || '';
 
+  useEffect(() => {
+  setAvatarFailed(false);
+}, [resolvedAuthorAvatar]);
+
+  const avatarNode =
+    resolvedAuthorAvatar && !avatarFailed ? (
+      <img
+        src={resolvedAuthorAvatar}
+        alt={resolvedAuthorName}
+        onError={() => setAvatarFailed(true)}
+        style={{
+          width: 42,
+          height: 42,
+          borderRadius: '50%',
+          objectFit: 'cover',
+          flexShrink: 0,
+          display: 'block',
+        }}
+      />
+    ) : (
+      <div
+        style={{
+          width: 42,
+          height: 42,
+          borderRadius: '50%',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          border: '1px solid #555',
+          fontWeight: 700,
+          flexShrink: 0,
+        }}
+      >
+        {fallbackInitial(resolvedAuthorName)}
+      </div>
+    );
+
   return (
-    <Link
-      to={`/trips/${trip.id}`}
+    <div
+      onClick={() => navigate(`/trips/${trip.id}`)}
       style={{
         display: 'block',
         border: '1px solid #444',
         borderRadius: 14,
         padding: 16,
-        textDecoration: 'none',
+        cursor: 'pointer',
       }}
     >
       <div
@@ -64,36 +105,7 @@ function TripCard({
               onClick={(e) => e.stopPropagation()}
               style={{ textDecoration: 'none', color: 'inherit' }}
             >
-              {resolvedAuthorAvatar ? (
-                <img
-                  src={resolvedAuthorAvatar}
-                  alt={resolvedAuthorName}
-                  style={{
-                    width: 42,
-                    height: 42,
-                    borderRadius: '50%',
-                    objectFit: 'cover',
-                    flexShrink: 0,
-                    display: 'block',
-                  }}
-                />
-              ) : (
-                <div
-                  style={{
-                    width: 42,
-                    height: 42,
-                    borderRadius: '50%',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    border: '1px solid #555',
-                    fontWeight: 700,
-                    flexShrink: 0,
-                  }}
-                >
-                  {fallbackInitial(resolvedAuthorName)}
-                </div>
-              )}
+              {avatarNode}
             </Link>
 
             <div style={{ minWidth: 0 }}>
@@ -104,6 +116,7 @@ function TripCard({
               >
                 <div style={{ fontWeight: 700 }}>{resolvedAuthorName}</div>
               </Link>
+
               <div style={{ opacity: 0.8, fontSize: '0.9rem' }}>
                 {trip.visibility} · {trip.status}
               </div>
@@ -153,7 +166,7 @@ function TripCard({
           )}
         </div>
       </div>
-    </Link>
+    </div>
   );
 }
 

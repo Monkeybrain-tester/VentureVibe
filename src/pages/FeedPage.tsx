@@ -5,7 +5,7 @@ import { apiFetch } from '../lib/api';
 import type { Trip } from '../types';
 import TripCard from '../components/TripCard';
 import { createSignedMediaUrls } from '../lib/mediaUpload';
-import { createSignedAvatarUrl } from '../lib/avatarUpload';
+import { createSignedAvatarUrl, isDirectUrl } from '../lib/avatarUpload';
 
 type FeedTrip = Trip & {
   author_id?: string;
@@ -28,6 +28,15 @@ function FeedPage() {
 
       try {
         const data = await apiFetch<FeedTrip[]>(`/feed/${user.id}`);
+        console.log(
+          'FEED raw data',
+          data.map((trip) => ({
+            title: trip.title,
+            author: trip.author_username,
+            avatar: trip.author_avatar_url,
+            authorId: trip.author_id,
+          }))
+        );
         setTrips(data);
       } catch (err) {
         console.error(err);
@@ -50,7 +59,7 @@ function FeedPage() {
         (trip.legs || []).flatMap((leg) => leg.media_urls || [])
       );
 
-      const uniquePaths = Array.from(new Set(allPaths));
+      const uniquePaths = Array.from(new Set(allPaths.filter(Boolean)));
       if (!uniquePaths.length) {
         setSignedMediaMap({});
         return;
@@ -75,22 +84,39 @@ function FeedPage() {
       }
 
       const avatarPaths = Array.from(
-        new Set(trips.map((trip) => trip.author_avatar_url).filter(Boolean))
-      ) as string[];
+        new Set(
+          trips
+            .map((trip) => trip.author_avatar_url)
+            .filter((value): value is string => Boolean(value && value.trim()))
+        )
+      );
 
       if (!avatarPaths.length) {
         setSignedAvatarMap({});
         return;
       }
 
-      try {
-        const entries = await Promise.all(
-          avatarPaths.map(async (path) => [path, await createSignedAvatarUrl(path, 60 * 60)] as const)
-        );
-        setSignedAvatarMap(Object.fromEntries(entries));
-      } catch (err) {
-        console.error('failed signing feed avatars', err);
+      const result: Record<string, string> = {};
+
+      for (const path of avatarPaths) {
+        try {
+          let resolved = '';
+
+          if (isDirectUrl(path)) {
+            resolved = path;
+          } else {
+            resolved = await createSignedAvatarUrl(path, 60 * 60);
+          }
+
+          result[path] = resolved;
+        } catch (err) {
+          console.error(`failed signing avatar for ${path}`, err);
+          result[path] = '';
+        }
       }
+
+      console.log('FEED signedAvatarMap', result);
+      setSignedAvatarMap(result);
     }
 
     signAvatars();

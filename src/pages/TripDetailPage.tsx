@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { APIProvider, InfoWindow, Map, Marker } from '@vis.gl/react-google-maps';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../AuthContext';
 import { apiFetch } from '../lib/api';
 import type { Trip } from '../types';
@@ -18,6 +18,8 @@ type SelectedPoint =
     }
   | {
       type: 'leg';
+      legId?: string;
+      tripId: string;
       lat: number;
       lng: number;
       title: string;
@@ -34,6 +36,13 @@ function isImage(url: string) {
 
 function isVideo(url: string) {
   return /\.(mp4|webm|ogg|mov|m4v)(\?|$)/i.test(url);
+}
+
+function formatDateOnly(value?: string) {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value.split('T')[0] || value;
+  return date.toLocaleDateString();
 }
 
 function TripDetailPage() {
@@ -165,6 +174,8 @@ function TripDetailPage() {
                     onClick={() =>
                       setSelectedPoint({
                         type: 'leg',
+                        legId: leg.id,
+                        tripId: trip.id,
                         lat: leg.lat,
                         lng: leg.lng,
                         title: leg.location_name,
@@ -190,7 +201,7 @@ function TripDetailPage() {
                         <>
                           {selectedPoint.start_time && (
                             <p style={{ margin: '0 0 8px 0' }}>
-                              <strong>time:</strong> {selectedPoint.start_time}
+                              <strong>time:</strong> {formatDateOnly(selectedPoint.start_time)}
                             </p>
                           )}
 
@@ -199,34 +210,43 @@ function TripDetailPage() {
                           )}
 
                           {selectedPoint.media_urls && selectedPoint.media_urls.length > 0 && (
-                            <div style={{ display: 'grid', gap: 8 }}>
-                              {selectedPoint.media_urls.map((path) => {
+                            <div style={{ display: 'grid', gap: 8, marginBottom: 8 }}>
+                              {selectedPoint.media_urls.slice(0, 1).map((path) => {
                                 const signedUrl = resolveMediaUrl(path);
                                 if (!signedUrl) return null;
 
-                                return (
-                                  <div key={path}>
-                                    {isImage(signedUrl) ? (
-                                      <img
-                                        src={signedUrl}
-                                        alt="leg media"
-                                        style={{ width: '100%', borderRadius: 8, maxHeight: 180, objectFit: 'cover' }}
-                                      />
-                                    ) : isVideo(signedUrl) ? (
-                                      <video
-                                        src={signedUrl}
-                                        controls
-                                        style={{ width: '100%', borderRadius: 8, maxHeight: 180 }}
-                                      />
-                                    ) : (
-                                      <a href={signedUrl} target="_blank" rel="noreferrer">
-                                        open media
-                                      </a>
-                                    )}
-                                  </div>
-                                );
+                                return isImage(signedUrl) ? (
+                                  <img
+                                    key={path}
+                                    src={signedUrl}
+                                    alt="leg media"
+                                    style={{
+                                      width: '100%',
+                                      borderRadius: 8,
+                                      maxHeight: 180,
+                                      objectFit: 'cover',
+                                    }}
+                                  />
+                                ) : isVideo(signedUrl) ? (
+                                  <video
+                                    key={path}
+                                    src={signedUrl}
+                                    controls
+                                    style={{
+                                      width: '100%',
+                                      borderRadius: 8,
+                                      maxHeight: 180,
+                                    }}
+                                  />
+                                ) : null;
                               })}
                             </div>
+                          )}
+
+                          {selectedPoint.legId && (
+                            <Link to={`/trips/${selectedPoint.tripId}/legs/${selectedPoint.legId}`}>
+                              open leg page
+                            </Link>
                           )}
                         </>
                       )}
@@ -243,45 +263,74 @@ function TripDetailPage() {
         <h2>Legs</h2>
         <div style={{ display: 'grid', gap: 16 }}>
           {sortedLegs.map((leg) => (
-            <div
+            <Link
               key={leg.id || leg.order_index}
-              style={{ border: '1px solid #444', borderRadius: 12, padding: 16 }}
+              to={`/trips/${trip.id}/legs/${leg.id}`}
+              style={{
+                border: '1px solid #444',
+                borderRadius: 12,
+                padding: 16,
+                textDecoration: 'none',
+                display: 'block',
+              }}
             >
               <h3>{leg.location_name}</h3>
-              <p>{leg.start_time}</p>
+              <p>{formatDateOnly(leg.start_time)}</p>
               <p>{leg.caption}</p>
 
               {(leg.media_urls || []).length > 0 && (
-                <div style={{ display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
+                <div
+                  style={{
+                    display: 'grid',
+                    gap: 12,
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+                    marginTop: 12,
+                  }}
+                >
                   {leg.media_urls.map((path) => {
                     const signedUrl = resolveMediaUrl(path);
                     if (!signedUrl) return null;
 
+                    if (isImage(signedUrl)) {
+                      return (
+                        <img
+                          key={path}
+                          src={signedUrl}
+                          alt="trip media"
+                          style={{
+                            width: '100%',
+                            borderRadius: 12,
+                            maxHeight: 260,
+                            objectFit: 'cover',
+                          }}
+                        />
+                      );
+                    }
+
+                    if (isVideo(signedUrl)) {
+                      return (
+                        <video
+                          key={path}
+                          src={signedUrl}
+                          controls
+                          style={{
+                            width: '100%',
+                            borderRadius: 12,
+                            maxHeight: 260,
+                          }}
+                        />
+                      );
+                    }
+
                     return (
-                      <div key={path}>
-                        {isImage(signedUrl) ? (
-                          <img
-                            src={signedUrl}
-                            alt="trip media"
-                            style={{ width: '100%', borderRadius: 12, maxHeight: 260, objectFit: 'cover' }}
-                          />
-                        ) : isVideo(signedUrl) ? (
-                          <video
-                            src={signedUrl}
-                            controls
-                            style={{ width: '100%', borderRadius: 12, maxHeight: 260 }}
-                          />
-                        ) : (
-                          <a href={signedUrl} target="_blank" rel="noreferrer">
-                            open media
-                          </a>
-                        )}
-                      </div>
+                      <a key={path} href={signedUrl} target="_blank" rel="noreferrer">
+                        open media
+                      </a>
                     );
                   })}
                 </div>
               )}
-            </div>
+            </Link>
           ))}
         </div>
       </div>
