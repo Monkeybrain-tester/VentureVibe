@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../AuthContext';
 import { apiFetch } from '../lib/api';
 import AppHeader from '../components/AppHeader';
+import { uploadAvatar, createSignedAvatarUrl } from '../lib/avatarUpload';
 
 type UserProfileData = {
   user_id: string;
@@ -15,12 +16,23 @@ type UserProfileData = {
   website: string;
 };
 
+type PublicProfileData = {
+  id: string;
+  username: string;
+  email?: string;
+  bio?: string;
+  avatar_url?: string;
+  visibility?: string;
+  created_at?: string | null;
+};
+
 function EditProfilePage() {
   const { user } = useAuth();
   const navigate = useNavigate();
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [avatarUploading, setAvatarUploading] = useState(false);
 
   const [displayName, setDisplayName] = useState('');
   const [tagline, setTagline] = useState('');
@@ -30,6 +42,9 @@ function EditProfilePage() {
   const [coverPhotoUrl, setCoverPhotoUrl] = useState('');
   const [website, setWebsite] = useState('');
 
+  const [avatarPath, setAvatarPath] = useState('');
+  const [signedAvatarUrl, setSignedAvatarUrl] = useState('');
+
   useEffect(() => {
     async function loadProfile() {
       if (!user?.id) {
@@ -38,7 +53,11 @@ function EditProfilePage() {
       }
 
       try {
-        const profile = await apiFetch<UserProfileData>(`/user-profiles/${user.id}`);
+        const [profile, publicProfile] = await Promise.all([
+          apiFetch<UserProfileData>(`/user-profiles/${user.id}`),
+          apiFetch<PublicProfileData>(`/profiles/${user.id}?viewer_id=${user.id}`),
+        ]);
+
         setDisplayName(profile.display_name || '');
         setTagline(profile.tagline || '');
         setDateOfBirth(profile.date_of_birth || '');
@@ -46,6 +65,7 @@ function EditProfilePage() {
         setCountry(profile.country || '');
         setCoverPhotoUrl(profile.cover_photo_url || '');
         setWebsite(profile.website || '');
+        setAvatarPath(publicProfile.avatar_url || '');
       } catch (err) {
         console.error('Failed to load profile:', err);
       } finally {
@@ -55,6 +75,46 @@ function EditProfilePage() {
 
     loadProfile();
   }, [user?.id, navigate]);
+
+  useEffect(() => {
+    async function signAvatar() {
+      if (!avatarPath) {
+        setSignedAvatarUrl('');
+        return;
+      }
+
+      try {
+        const signed = await createSignedAvatarUrl(avatarPath, 60 * 60);
+        setSignedAvatarUrl(signed);
+      } catch (err) {
+        console.error('Failed to sign avatar url:', err);
+      }
+    }
+
+    signAvatar();
+  }, [avatarPath]);
+
+  async function handleAvatarUpload(file: File) {
+    if (!user?.id) return;
+
+    setAvatarUploading(true);
+    try {
+      const path = await uploadAvatar(file, user.id);
+
+      await apiFetch(`/profiles/${user.id}/avatar`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ avatar_url: path }),
+      });
+
+      setAvatarPath(path);
+    } catch (err) {
+      console.error('Failed to upload avatar:', err);
+      alert('Failed to upload avatar. Please try again.');
+    } finally {
+      setAvatarUploading(false);
+    }
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -88,6 +148,42 @@ function EditProfilePage() {
     }
   }
 
+  const avatarPreview = useMemo(() => {
+    if (signedAvatarUrl) {
+      return (
+        <img
+          src={signedAvatarUrl}
+          alt="avatar preview"
+          style={{
+            width: 96,
+            height: 96,
+            borderRadius: '50%',
+            objectFit: 'cover',
+            display: 'block',
+          }}
+        />
+      );
+    }
+
+    return (
+      <div
+        style={{
+          width: 96,
+          height: 96,
+          borderRadius: '50%',
+          border: '1px solid #555',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontWeight: 700,
+          fontSize: '1.8rem',
+        }}
+      >
+        {user?.email?.[0]?.toUpperCase() || '?'}
+      </div>
+    );
+  }, [signedAvatarUrl, user?.email]);
+
   if (loading) {
     return <div style={{ padding: 24 }}>Loading...</div>;
   }
@@ -100,6 +196,28 @@ function EditProfilePage() {
         <h1>Edit Profile</h1>
 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div>
+            <label style={{ display: 'block', marginBottom: 8 }}>Profile Picture</label>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+              {avatarPreview}
+
+              <div>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) handleAvatarUpload(file);
+                  }}
+                />
+                <p style={{ marginTop: 8, opacity: 0.8 }}>
+                  {avatarUploading ? 'uploading + compressing...' : 'upload a profile picture'}
+                </p>
+              </div>
+            </div>
+          </div>
+
           <div>
             <label htmlFor="displayName" style={{ display: 'block', marginBottom: 4 }}>
               Display Name

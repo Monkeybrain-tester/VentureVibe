@@ -10,6 +10,13 @@ from pydantic import BaseModel
 import psycopg2
 import psycopg2.extras
 
+
+from pydantic import BaseModel
+
+class UpdateAvatar(BaseModel):
+    avatar_url: str
+
+
 load_dotenv()
 
 APP_MODE = os.getenv("APP_MODE", "real").lower()
@@ -1048,5 +1055,168 @@ async def update_user_profile(user_id: str, profile: UserProfileUpdate):
     except Exception:
         conn.rollback()
         raise
+    finally:
+        conn.close()
+
+@app.get("/feed/{viewer_id}")
+async def get_feed(viewer_id: str):
+    if USE_DUMMY_DATA:
+        visible = []
+        for trip in trips_db.values():
+            if can_view_dummy(trip["user_id"], viewer_id, trip["visibility"]):
+                trip_copy = dict(trip)
+                author = users_db.get(trip["user_id"])
+                trip_copy["author_username"] = author["username"] if author else "unknown"
+                trip_copy["author_avatar_url"] = author.get("avatar_url", "") if author else ""
+                visible.append(trip_copy)
+
+        visible.sort(key=lambda t: t.get("created_at", ""), reverse=True)
+        return visible[:10]
+
+    conn = get_conn()
+    try:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(
+                """
+                SELECT id
+                FROM trips
+                ORDER BY created_at DESC
+                LIMIT 50
+                """
+            )
+            trip_ids = [str(row["id"]) for row in cur.fetchall()]
+
+            results = []
+            for trip_id in trip_ids:
+                trip = fetch_trip_by_id_db(cur, trip_id)
+                if trip and can_view_db(cur, trip["user_id"], viewer_id, trip["visibility"]):
+                    cur.execute(
+                        """
+                        SELECT u.username,
+                            u.avatar_url,
+                            up.display_name
+                        FROM users u
+                        LEFT JOIN user_profiles up
+                        ON up.user_id = u.id
+                        WHERE u.id = %s
+                        """,
+                        (trip["user_id"],),
+                    )
+                    author = cur.fetchone()
+
+                    trip["author_username"] = (
+                        author["display_name"]
+                        if author and author.get("display_name")
+                        else author["username"]
+                        if author
+                        else "unknown"
+                    )
+                    trip["author_avatar_url"] = author["avatar_url"] if author and author["avatar_url"] else ""
+                    trip["author_id"] = trip["user_id"]
+
+                    results.append(trip)
+
+                if len(results) >= 10:
+                    break
+
+            return results
+    finally:
+        conn.close()
+
+
+
+@app.patch("/profiles/{user_id}/avatar")
+async def update_avatar(user_id: str, payload: UpdateAvatar):
+    if USE_DUMMY_DATA:
+        if user_id not in users_db:
+            raise HTTPException(status_code=404, detail="user not found")
+
+        users_db[user_id]["avatar_url"] = payload.avatar_url
+        return users_db[user_id]
+
+    conn = get_conn()
+    try:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(
+                """
+                UPDATE users
+                SET avatar_url = %s
+                WHERE id = %s
+                """,
+                (payload.avatar_url, user_id),
+            )
+            conn.commit()
+
+            cur.execute(
+                """
+                SELECT id, username, email, bio, avatar_url, visibility, created_at
+                FROM users
+                WHERE id = %s
+                """,
+                (user_id,),
+            )
+            row = cur.fetchone()
+
+            if not row:
+                raise HTTPException(status_code=404, detail="user not found")
+
+            return serialize_profile_row(row)
+    finally:
+        conn.close()
+
+@app.get("/map/{viewer_id}")
+async def get_map_trips(viewer_id: str):
+    if USE_DUMMY_DATA:
+        results = []
+
+        for trip in trips_db.values():
+            if not can_view_dummy(trip["user_id"], viewer_id, trip["visibility"]):
+                continue
+
+            trip_copy = dict(trip)
+
+            if trip["user_id"] == viewer_id:
+                trip_copy["viewer_relation"] = "own"
+            elif are_friends_dummy(trip["user_id"], viewer_id):
+                trip_copy["viewer_relation"] = "friend"
+            else:
+                trip_copy["viewer_relation"] = "public"
+
+            results.append(trip_copy)
+
+        return results
+
+    conn = get_conn()
+    try:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(
+                """
+                SELECT id
+                FROM trips
+                ORDER BY created_at DESC
+                LIMIT 300
+                """
+            )
+            trip_ids = [str(row["id"]) for row in cur.fetchall()]
+
+            results = []
+            for trip_id in trip_ids:
+                trip = fetch_trip_by_id_db(cur, trip_id)
+                if not trip:
+                    continue
+
+                if not can_view_db(cur, trip["user_id"], viewer_id, trip["visibility"]):
+                    continue
+
+                if trip["user_id"] == viewer_id:
+                    trip["viewer_relation"] = "own"
+                elif are_friends_db(cur, trip["user_id"], viewer_id):
+                    trip["viewer_relation"] = "friend"
+                else:
+                    trip["viewer_relation"] = "public"
+
+                results.append(trip)
+
+            return results
     finally:
         conn.close()
