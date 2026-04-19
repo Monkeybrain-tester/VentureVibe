@@ -7,6 +7,10 @@ function sanitizeFileName(name: string) {
   return name.replace(/[^a-zA-Z0-9._-]/g, '_');
 }
 
+export function isDirectUrl(value: string) {
+  return /^https?:\/\//i.test(value);
+}
+
 function isImageFile(file: File) {
   return file.type.startsWith('image/');
 }
@@ -37,7 +41,6 @@ export async function prepareMediaFile(file: File): Promise<File> {
   }
 
   if (isVideoFile(file)) {
-    // keep videos disabled for now to protect storage
     throw new Error('video upload is disabled right now to save storage');
   }
 
@@ -60,24 +63,33 @@ export async function uploadTripMedia(file: File, userId: string): Promise<strin
     throw error;
   }
 
-  // IMPORTANT:
-  // return the STORAGE PATH, not a signed URL.
-  // signed URLs expire, storage paths do not.
   return filePath;
 }
 
 export async function createSignedMediaUrls(paths: string[], expiresIn = 60 * 60) {
   if (!paths.length) return {};
 
+  const result: Record<string, string> = {};
+
+  const directUrls = paths.filter(isDirectUrl);
+  const storagePaths = paths.filter((p) => !isDirectUrl(p));
+
+  for (const url of directUrls) {
+    result[url] = url;
+  }
+
+  if (!storagePaths.length) {
+    return result;
+  }
+
   const { data, error } = await supabase.storage
     .from(BUCKET)
-    .createSignedUrls(paths, expiresIn);
+    .createSignedUrls(storagePaths, expiresIn);
 
   if (error) {
     throw error;
   }
 
-  const result: Record<string, string> = {};
   for (const item of data ?? []) {
     if (item.path && item.signedUrl) {
       result[item.path] = item.signedUrl;
