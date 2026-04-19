@@ -1,201 +1,192 @@
-import { InfoWindow, APIProvider, Map, Marker } from '@vis.gl/react-google-maps';
+import { APIProvider, InfoWindow, Map, Marker } from '@vis.gl/react-google-maps';
+import { useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import type { Trip } from '../types';
-import Polyline from '../components/Polyline';
-import { useState } from 'react';
+import Polyline from './Polyline';
 
-//Set to user's location or default (currently Gainesville)
-const center = {
-  lat: 29.6516,
-  lng: -82.3248
+const apiKey = import.meta.env.VITE_Key;
+
+type MapTrip = Trip & {
+  viewer_relation?: 'own' | 'friend' | 'public';
 };
 
-const apikey = import.meta.env.VITE_Key
-
-type MapTripProps = {
-  trips?: Trip[];
-  center?: {
-    lat: number;
-    lng: number;
-  };
+type MapComponentProps = {
+  trips?: MapTrip[];
+  center?: { lat: number; lng: number };
+  signedMediaMap?: Record<string, string>;
 };
 
-type SelectedPoint =
-  | {
-      type: 'start';
-      lat: number;
-      lng: number;
-      title: string;
-      description?: string;
-    }
-  | {
-      type: 'leg';
-      lat: number;
-      lng: number;
-      title: string;
-      description?: string;
-      start_time?: string;
-      media_urls?: string[];
-    };
+type SelectedMarker = {
+  type: 'start' | 'leg';
+  tripId: string;
+  tripTitle: string;
+  relation: 'own' | 'friend' | 'public';
+  title: string;
+  lat: number;
+  lng: number;
+  description?: string;
+  start_time?: string;
+  thumbnailUrl?: string;
+} | null;
 
-function getRoutePoints(trip: Trip) {
-  if (!trip) return [];
-  const sortedLegs = [...trip.legs].sort((a, b) => a.order_index - b.order_index);
-  return [
-    { lat: trip.start_lat, lng: trip.start_lng },
-    ...sortedLegs.map((leg) => ({ lat: leg.lat, lng: leg.lng })),
-  ];
-};
+function relationColor(relation: 'own' | 'friend' | 'public') {
+  if (relation === 'own') return 'blue';
+  if (relation === 'friend') return 'green';
+  return 'red';
+}
 
-function MapComponent(props: MapTripProps) {
-  const markers = props.trips?.flatMap((trip) => [
-    {
-      lat: trip.start_lat,
-      lng: trip.start_lng,
-      type: 'start',
-      title: trip.start_location_name,
-      description: trip.description || 'Trip starting point',
-      tripId: trip.id,
-      index: -1,
-      leg_start_time: undefined,
-      leg_media_urls: undefined,
-    },
-    ...[...trip.legs]
-      .sort((a, b) => a.order_index - b.order_index)
-      .map((leg) => ({
-        lat: leg.lat,
-        lng: leg.lng,
-        type: 'leg',
+function markerIcon(relation: 'own' | 'friend' | 'public') {
+  const color = relationColor(relation);
+  return `http://maps.google.com/mapfiles/ms/icons/${color}-dot.png`;
+}
+
+function formatDateOnly(value?: string) {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value.split('T')[0] || value;
+  return date.toLocaleDateString();
+}
+
+function MapComponent({
+  trips = [],
+  center = { lat: 29.6516, lng: -82.3248 },
+  signedMediaMap = {},
+}: MapComponentProps) {
+  const navigate = useNavigate();
+  const [selectedMarker, setSelectedMarker] = useState<SelectedMarker>(null);
+
+  const markerData = useMemo(() => {
+    const allMarkers: NonNullable<SelectedMarker>[] = [];
+
+    for (const trip of trips) {
+      const relation = trip.viewer_relation || 'public';
+
+      allMarkers.push({
+        type: 'start',
         tripId: trip.id,
-        index: leg.order_index,
-        title: leg.location_name,
-        description: leg.caption || 'No caption provided',
-        leg_media_urls: leg.media_urls,
-        leg_start_time: leg.start_time || 'Not specified',
-      })),
-  ]);
+        tripTitle: trip.title,
+        relation,
+        title: `${trip.title} (start)`,
+        lat: trip.start_lat,
+        lng: trip.start_lng,
+        description: trip.start_location_name,
+      });
 
-  const allRoutePoints = props.trips?.map(getRoutePoints);
-  const [selectedPoint, setSelectedPoint] = useState<SelectedPoint | null>(null);
+      for (const leg of trip.legs || []) {
+        const firstMediaPath = (leg.media_urls || [])[0] || '';
+        const thumbnailUrl = firstMediaPath
+          ? signedMediaMap[firstMediaPath] || firstMediaPath
+          : '';
+
+        allMarkers.push({
+          type: 'leg',
+          tripId: trip.id,
+          tripTitle: trip.title,
+          relation,
+          title: leg.location_name || trip.title,
+          lat: leg.lat,
+          lng: leg.lng,
+          description: leg.caption,
+          start_time: leg.start_time,
+          thumbnailUrl,
+        });
+      }
+    }
+
+    return allMarkers;
+  }, [trips, signedMediaMap]);
+
+  const routeData = useMemo(() => {
+    return trips.map((trip) => ({
+      tripId: trip.id,
+      relation: trip.viewer_relation || 'public',
+      path: [
+        { lat: trip.start_lat, lng: trip.start_lng },
+        ...(trip.legs || []).map((leg) => ({ lat: leg.lat, lng: leg.lng })),
+      ],
+    }));
+  }, [trips]);
 
   return (
-    <div
-      style={{
-        position: 'relative',
-        width: '100%',
-        margin: '24px 0',
-        display: 'flex',
-        justifyContent: 'center',
-      }}
-    >
-      <div
-        style={{
-          width: '100%',
-          maxWidth: '1000px',
-          height: '600px',
-          background: '#1f1f1f',
-          borderRadius: 16,
-          overflow: 'hidden',
-          border: '1px solid #444',
-          display: 'flex',
-          flexDirection: 'column',
-          boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
-        }}
+    <APIProvider apiKey={apiKey}>
+      <Map
+        style={{ width: '100%', height: '100%' }}
+        defaultCenter={center}
+        defaultZoom={5}
+        gestureHandling="greedy"
+        disableDefaultUI={false}
       >
+        {routeData.map((route) => (
+          <Polyline
+            key={route.tripId}
+            path={route.path}
+            strokeColor={
+              route.relation === 'own'
+                ? '#2563eb'
+                : route.relation === 'friend'
+                ? '#16a34a'
+                : '#dc2626'
+            }
+            strokeOpacity={0.95}
+            strokeWeight={4}
+          />
+        ))}
 
-        <div
-          style={{
-            padding: '14px 16px',
-            borderBottom: '1px solid #444',
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            gap: 12,
-            background: '#2a2a2a',
-          }}
-        >
-          <div style={{ color: '#eee', fontSize: '14px', fontWeight: 500 }}>
-            Trip Map
-          </div>
-        </div>
+        {markerData.map((marker, index) => (
+          <Marker
+            key={`${marker.tripId}-${marker.type}-${index}`}
+            position={{ lat: marker.lat, lng: marker.lng }}
+            icon={markerIcon(marker.relation)}
+            onClick={() => setSelectedMarker(marker)}
+          />
+        ))}
 
-        <div style={{ flex: 1, width: '100%', position: 'relative' }}>
-          <APIProvider apiKey={apikey}>
-            <Map
-              style={{ width: '100%', height: '100%' }}
-              defaultCenter={props.center || center}
-              defaultZoom={12}
-              gestureHandling="greedy"
-              disableDefaultUI
-              mapId="DEMO_MAP_ID"
+        {selectedMarker && (
+          <InfoWindow
+            position={{ lat: selectedMarker.lat, lng: selectedMarker.lng }}
+            onCloseClick={() => setSelectedMarker(null)}
+          >
+            <div
+              onClick={() => navigate(`/trips/${selectedMarker.tripId}`)}
+              style={{
+                color: '#111',
+                maxWidth: 230,
+                cursor: 'pointer',
+                display: 'grid',
+                gap: 8,
+              }}
             >
-              {allRoutePoints?.map((points, index) => (
-                <Polyline key={index} path={points} strokeColor="#4285F4" strokeOpacity={1} strokeWeight={4} />
-              ))}
+              <h3 style={{ margin: 0 }}>{selectedMarker.title}</h3>
 
-              {markers?.map((marker, index) => (
-                <Marker
-                  key={index} 
-                  position={marker} 
-                  onClick={() => {
-                      if (marker.type === 'start') {
-                        setSelectedPoint({
-                          type: 'start',
-                          lat: marker.lat,
-                          lng: marker.lng,
-                          title: marker.title,
-                          description: marker.description,
-                        });
-                      } else if (marker.type === 'leg') {
-                        setSelectedPoint({
-                          type: 'leg',
-                          lat: marker.lat,
-                          lng: marker.lng,
-                          title: marker.title,
-                          description: marker.description,
-                          start_time: marker.leg_start_time,
-                          media_urls: marker.leg_media_urls,
-                        });
-                      }
-                    }
-                  }
-                /> 
-              ))}
+              {selectedMarker.start_time && (
+                <p style={{ margin: 0 }}>
+                  time: {formatDateOnly(selectedMarker.start_time)}
+                </p>
+              )}
 
-              {selectedPoint && (
-                  <InfoWindow
-                    position={{ lat: selectedPoint.lat, lng: selectedPoint.lng }}
-                    onCloseClick={() => setSelectedPoint(null)}
-                  >
-                    <div style={{ color: '#111', maxWidth: 240 }}>
-                      <h3 style={{ marginTop: 0, marginBottom: 8 }}>{selectedPoint.title}</h3>
+              {selectedMarker.description && (
+                <p style={{ margin: 0 }}>{selectedMarker.description}</p>
+              )}
 
-                      {selectedPoint.type === 'start' ? (
-                        <p style={{ margin: 0 }}>{selectedPoint.description}</p>
-                      ) : (
-                        <>
-                          <p style={{ margin: '0 0 8px 0' }}>
-                            <strong>time:</strong> {selectedPoint.start_time && selectedPoint.start_time != 'Not specified' ? new Date(selectedPoint.start_time).toLocaleDateString() : 'Not specified'}
-                          </p>
+              {selectedMarker.thumbnailUrl && (
+                <img
+                  src={selectedMarker.thumbnailUrl}
+                  alt="leg preview"
+                  style={{
+                    width: '100%',
+                    maxHeight: 120,
+                    objectFit: 'cover',
+                    borderRadius: 8,
+                  }}
+                />
+              )}
 
-                          <p style={{ margin: '0 0 8px 0' }}>
-                            <strong>caption:</strong> {selectedPoint.description || 'No caption provided'}
-                          </p>
-
-                          {((selectedPoint.media_urls && selectedPoint.media_urls.length > 0) || (selectedPoint.description != 'No caption provided')) && (
-                            <div>
-                              <button>See Post</button>
-                            </div>
-                          )}
-                        </>
-                      )}
-                    </div>
-                  </InfoWindow>
-                )}
-            </Map>
-          </APIProvider>
-        </div>
-      </div>
-    </div>
+              <div style={{ fontWeight: 600 }}>open trip</div>
+            </div>
+          </InfoWindow>
+        )}
+      </Map>
+    </APIProvider>
   );
 }
 
