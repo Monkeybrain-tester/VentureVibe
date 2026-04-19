@@ -50,3 +50,8 @@ export type FriendUser = {
   username: string;
   avatar_url?: string;
 };
+
+export type LikeState = {
+  count: number;
+  liked: boolean;
+};
