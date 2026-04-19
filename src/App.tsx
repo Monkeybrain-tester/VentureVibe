@@ -1,10 +1,12 @@
 import MapPage from './pages/MapPage';
 import AuthPage from './pages/AuthPage';
 import ProfilePage from './pages/ProfilePage';
+import EditProfilePage from './pages/EditProfilePage';
 import MakeTripPage from './pages/MakeTripPage';
 import FriendsPage from './pages/FriendsPage';
 import TripDetailPage from './pages/TripDetailPage';
 import EditTripPage from './pages/EditTripPage';
+import ForYouPage from './pages/ForYouPage';
 import './App.css';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './AuthContext';
@@ -33,6 +35,15 @@ function App() {
           element={
             <ProtectedRoute>
               <ProfilePage />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/profile/edit"
+          element={
+            <ProtectedRoute>
+              <EditProfilePage />
             </ProtectedRoute>
           }
         />
@@ -87,6 +98,15 @@ function App() {
           element={
             <ProtectedRoute>
               <MapPage />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/fyp"
+          element={
+            <ProtectedRoute>
+              <ForYouPage />
             </ProtectedRoute>
           }
         />

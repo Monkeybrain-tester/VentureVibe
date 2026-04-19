@@ -1,5 +1,6 @@
 import { APIProvider, InfoWindow, Map, Marker } from '@vis.gl/react-google-maps';
 import { useMemo, useState } from 'react';
+import { PlaceAutocomplete } from './PlaceAutocomplete';
 
 type LatLng = {
   lat: number;
@@ -92,7 +93,7 @@ function MapLocationModal({
           <strong>selected:</strong>{' '}
           {selected ? `${selected.lat.toFixed(6)}, ${selected.lng.toFixed(6)}` : 'none'}
         </div>
-
+        
         <div style={{ flex: 1 }}>
           <APIProvider apiKey={apiKey}>
             <Map
@@ -110,6 +111,14 @@ function MapLocationModal({
                 });
               }}
             >
+              <PlaceAutocomplete onPlaceSelect={(place) => {
+                if (place?.geometry?.location) {
+                  setSelected({
+                    lat: place.geometry.location.lat(),
+                    lng: place.geometry.location.lng(),
+                  });
+                }
+              }} />
               {selected && <Marker position={selected} />}
 
               {selected && (

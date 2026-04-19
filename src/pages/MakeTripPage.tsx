@@ -84,8 +84,15 @@ function MakeTripPage() {
       setStartLat(String(coords.lat));
       setStartLng(String(coords.lng));
     } else {
-      updateLeg(pickerTarget.index, 'lat', coords.lat);
-      updateLeg(pickerTarget.index, 'lng', coords.lng);
+      setLegs(prevLegs => {
+        const updated = [...prevLegs];
+        updated[pickerTarget.index] = {
+          ...updated[pickerTarget.index],
+          lat: coords.lat,
+          lng: coords.lng,
+        };
+        return updated;
+      });
     }
 
     setPickerTarget(null);

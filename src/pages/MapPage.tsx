@@ -1,7 +1,25 @@
 import { useState, useEffect } from "react";
 import MapComponent from "../components/Map";
-import AddMarkerComponent from "../components/AddMarkers";
 import AppHeader from "../components/AppHeader";
+import type { FriendUser } from "../types";
+import { useAuth } from "../AuthContext";
+import { apiFetch } from "../lib/api";
+import type { Trip } from "../types";
+import { useSearchParams } from 'react-router-dom';
+
+function GetCenter() {
+  const [searchParams] = useSearchParams();
+  const center = searchParams.get('lat') && searchParams.get('lng') ? {
+    lat: parseFloat(searchParams.get('lat')!),
+    lng: parseFloat(searchParams.get('lng')!)
+  } : {
+  lat: 29.6516,
+  lng: -82.3248
+};
+  return center;
+}
+
+const apiKey = import.meta.env.VITE_Key;
 
 type MapMarker = {
   lat: number;
@@ -9,27 +27,37 @@ type MapMarker = {
 };
 
 function MapPage() {
+  const { user } = useAuth();
   const [markers, setMarkers] = useState<MapMarker[]>([]);
+  const [friends, setFriends] = useState<FriendUser[]>([]);
+  const [trips, setTrips] = useState<Trip[]>([]);
 
-  useEffect(() => {
-    fetch("http://localhost:8000/markers")
-      .then((response) => response.json())
-      .then((data) => setMarkers(data.markers));
-  }, []);
+  async function load() {
+      if (!user) return;
+      try {
+        const friendsData = await apiFetch<FriendUser[]>(`/friends/${user.id}`);
+        setFriends(friendsData);
+        for (const friend of friendsData) {
+          const friendTrips = await apiFetch<Trip[]>(`/profiles/${friend.id}/trips`);
+          for (const trip of friendTrips) {
+            setTrips((prev) => [...prev, trip]);
+          }
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    }
 
-  const handleAddMarker = (marker: MapMarker) => {
-    setMarkers((prev) => [...prev, marker]);
-  };
+    useEffect(() => {
+      load();
+    }, [user]);
+
+
 
   return (
     <>
       <AppHeader />
-
-      <div style={{ padding: 24 }}>
-        <h1>My Map</h1>
-        <MapComponent markers={markers} />
-        <AddMarkerComponent onAddMarker={handleAddMarker} />
-      </div>
+      <MapComponent trips={trips} center={GetCenter()} />
     </>
   );
 }
