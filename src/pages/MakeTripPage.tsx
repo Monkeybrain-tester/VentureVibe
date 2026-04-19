@@ -5,6 +5,7 @@ import { apiFetch } from '../lib/api';
 import type { TripLeg, TripStatus, Visibility } from '../types';
 import AppHeader from '../components/AppHeader';
 import MapLocationModal from '../components/MapLocationModal';
+import MediaUploadBox from '../components/MediaUploadBox';
 
 type PickerTarget =
   | { type: 'start' }
@@ -201,17 +202,14 @@ function MakeTripPage() {
                   value={leg.caption}
                   onChange={(e) => updateLeg(index, 'caption', e.target.value)}
                 />
-                <input
-                  placeholder="media urls, comma separated for now"
-                  value={leg.media_urls.join(',')}
-                  onChange={(e) =>
-                    updateLeg(
-                      index,
-                      'media_urls',
-                      e.target.value.split(',').map((s: string) => s.trim()).filter(Boolean)
-                    )
-                  }
-                />
+
+                {user && (
+                  <MediaUploadBox
+                    userId={user.id}
+                    mediaPaths={leg.media_urls}
+                    onChange={(paths) => updateLeg(index, 'media_urls', paths)}
+                  />
+                )}
               </div>
             </div>
           ))}
