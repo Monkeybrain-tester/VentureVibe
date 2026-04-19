@@ -1,0 +1,88 @@
+import imageCompression from 'browser-image-compression';
+import { supabase } from './supabase';
+
+const BUCKET = 'trip-media';
+
+function sanitizeFileName(name: string) {
+  return name.replace(/[^a-zA-Z0-9._-]/g, '_');
+}
+
+function isImageFile(file: File) {
+  return file.type.startsWith('image/');
+}
+
+function isVideoFile(file: File) {
+  return file.type.startsWith('video/');
+}
+
+export async function compressImageForUpload(file: File): Promise<File> {
+  const compressed = await imageCompression(file, {
+    maxSizeMB: 0.25,
+    maxWidthOrHeight: 1400,
+    useWebWorker: true,
+    initialQuality: 0.65,
+    fileType: 'image/webp',
+  });
+
+  const baseName = file.name.replace(/\.[^.]+$/, '');
+  return new File([compressed], `${sanitizeFileName(baseName)}.webp`, {
+    type: 'image/webp',
+    lastModified: Date.now(),
+  });
+}
+
+export async function prepareMediaFile(file: File): Promise<File> {
+  if (isImageFile(file)) {
+    return compressImageForUpload(file);
+  }
+
+  if (isVideoFile(file)) {
+    // keep videos disabled for now to protect storage
+    throw new Error('video upload is disabled right now to save storage');
+  }
+
+  throw new Error('unsupported file type');
+}
+
+export async function uploadTripMedia(file: File, userId: string): Promise<string> {
+  const prepared = await prepareMediaFile(file);
+  const filePath = `${userId}/${Date.now()}-${sanitizeFileName(prepared.name)}`;
+
+  const { error } = await supabase.storage
+    .from(BUCKET)
+    .upload(filePath, prepared, {
+      cacheControl: '3600',
+      upsert: false,
+      contentType: prepared.type || 'application/octet-stream',
+    });
+
+  if (error) {
+    throw error;
+  }
+
+  // IMPORTANT:
+  // return the STORAGE PATH, not a signed URL.
+  // signed URLs expire, storage paths do not.
+  return filePath;
+}
+
+export async function createSignedMediaUrls(paths: string[], expiresIn = 60 * 60) {
+  if (!paths.length) return {};
+
+  const { data, error } = await supabase.storage
+    .from(BUCKET)
+    .createSignedUrls(paths, expiresIn);
+
+  if (error) {
+    throw error;
+  }
+
+  const result: Record<string, string> = {};
+  for (const item of data ?? []) {
+    if (item.path && item.signedUrl) {
+      result[item.path] = item.signedUrl;
+    }
+  }
+
+  return result;
+}

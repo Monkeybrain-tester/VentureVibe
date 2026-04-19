@@ -654,7 +654,11 @@ async def update_trip(trip_id: str, trip: TripCreate):
                     )
 
             conn.commit()
-            return fetch_trip_by_id_db(cur, trip_id)
+
+            refreshed = fetch_trip_by_id_db(cur, trip_id)
+            if not refreshed:
+                raise HTTPException(status_code=404, detail="trip not found after update")
+            return refreshed
     except Exception:
         conn.rollback()
         raise

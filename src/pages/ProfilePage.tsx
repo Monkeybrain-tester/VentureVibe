@@ -1,56 +1,54 @@
 import { useEffect, useState } from 'react';
-import { Link, useParams, useNavigate } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import { useAuth } from '../AuthContext';
 import { apiFetch } from '../lib/api';
-import type { Trip } from '../types';
+import type { Trip, UserProfile } from '../types';
 import AppHeader from '../components/AppHeader';
-import PostComponent from '../components/Post';
 
 const isDummyMode = import.meta.env.VITE_APP_MODE === 'dummy';
-
-type UserProfileData = {
-  user_id: string;
-  display_name: string;
-  tagline: string;
-  date_of_birth: string | null;
-  city: string;
-  country: string;
-  cover_photo_url: string;
-  website: string;
-};
 
 function ProfilePage() {
   const { user } = useAuth();
   const { userId } = useParams();
-  const navigate = useNavigate();
 
   const targetUserId = userId || (isDummyMode ? 'test-user-1' : user?.id);
 
-  const [profile, setProfile] = useState<UserProfileData | null>(null);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
   const [trips, setTrips] = useState<Trip[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     async function load() {
       if (!targetUserId) {
+        setError("No user id available");
         setLoading(false);
         return;
       }
 
       try {
         const viewerId = isDummyMode ? 'test-user-1' : user?.id;
-        const profileData = await apiFetch<UserProfileData>(
-          `/user-profiles/${targetUserId}`
+
+        const profileData = await apiFetch<UserProfile>(
+          `/profiles/${targetUserId}?viewer_id=${viewerId ?? ''}`
         );
+
         const tripsData = await apiFetch<Trip[]>(
           `/profiles/${targetUserId}/trips?viewer_id=${viewerId ?? ''}`
         );
+
         setProfile(profileData);
         setTrips(tripsData);
-      } catch (err) {
-        console.error(err);
-        setProfile(null);
-        setTrips([]);
+      } catch (err: any) {
+        console.error("PROFILE LOAD ERROR:", err);
+
+        // try to extract useful message
+        const message =
+          err?.message ||
+          err?.detail ||
+          JSON.stringify(err);
+
+        setError(message);
       } finally {
         setLoading(false);
       }
@@ -60,100 +58,52 @@ function ProfilePage() {
   }, [targetUserId, user?.id]);
 
   if (loading) return <div style={{ padding: 24 }}>Loading profile...</div>;
-  if (!profile) return <div style={{ padding: 24 }}>Profile not found.</div>;
 
-  const isOwnProfile = isDummyMode || user?.id === profile.user_id;
+  if (error) {
+    return (
+      <>
+        <AppHeader />
+        <div style={{ padding: 24 }}>
+          <h2>Profile Load Error</h2>
+          <pre style={{ whiteSpace: 'pre-wrap' }}>{error}</pre>
+        </div>
+      </>
+    );
+  }
+
+  if (!profile) {
+    return (
+      <>
+        <AppHeader />
+        <div style={{ padding: 24 }}>
+          <h2>No profile found</h2>
+        </div>
+      </>
+    );
+  }
+
+  const isOwnProfile = isDummyMode || user?.id === profile.id;
 
   return (
-  <>
-    <AppHeader />
+    <>
+      <AppHeader />
 
-    <div style={{ padding: 24, width: '100%', maxWidth: 1000, margin: '0 auto' }}>
-      {profile.cover_photo_url && (
-        <div
-          style={{
-            width: '100%',
-            height: 200,
-            backgroundImage: `url(${profile.cover_photo_url})`,
-            backgroundSize: 'cover',
-            backgroundPosition: 'center',
-            borderRadius: 12,
-            marginBottom: 24,
-          }}
-        />
-      )}
+      <div style={{ padding: 24, width: '100%', maxWidth: 1000, margin: '0 auto' }}>
+        <h1>{profile.username}</h1>
 
-      <div style={{ marginBottom: 24, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-        <div>
-          <h1 style={{ marginBottom: 8 }}>{profile.display_name || 'No name set'}</h1>
-          {profile.tagline && <p style={{ fontSize: '1.1rem', color: '#aaa', marginBottom: 8 }}>{profile.tagline}</p>}
-          {profile.country && (
-            <p style={{ margin: '4px 0' }}>
-              {profile.city && `${profile.city}, `}{profile.country}
-            </p>
-          )}
-          {profile.website && (
-            <p style={{ margin: '4px 0' }}>
-              <a href={profile.website} target="_blank" rel="noopener noreferrer" style={{ color: '#58a6ff' }}>
-                {profile.website}
-              </a>
-            </p>
-          )}
-          {profile.date_of_birth && (
-            <p style={{ margin: '4px 0', color: '#888' }}>
-              Born: {new Date(profile.date_of_birth).toLocaleDateString()}
-            </p>
-          )}
-        </div>
-
-        {isOwnProfile && (
-          <button
-            onClick={() => navigate('/profile/edit')}
-            style={{
-              padding: '8px 16px',
-              background: '#238636',
-              border: '1px solid #2ea043',
-              borderRadius: 6,
-              cursor: 'pointer',
-              fontSize: '0.9rem',
-            }}
-          >
-            Edit Profile
-          </button>
+        <h2>Trips</h2>
+        {trips.length === 0 ? (
+          <p>No trips yet.</p>
+        ) : (
+          <div>
+            {trips.map((trip) => (
+              <Link key={trip.id} to={`/trips/${trip.id}`}>
+                {trip.title}
+              </Link>
+            ))}
+          </div>
         )}
       </div>
-
-      <h2>Trips</h2>
-      {trips.length === 0 ? (
-        <p>No trips yet.</p>
-      ) : (
-        <div style={{ display: 'grid', gap: 16 }}>
-          {trips.map((trip) => (
-            <div key={trip.id}>
-            <Link
-              key={trip.id}
-              to={`/trips/${trip.id}`}
-              style={{
-                border: '1px solid #444',
-                borderRadius: 12,
-                padding: 16,
-                display: 'block',
-              }}
-            >
-              <h3 style={{ marginTop: 0 }}>{trip.title}</h3>
-              <p style={{ margin: '8px 0' }}>start: {trip.start_location_name}</p>
-              <p style={{ margin: '8px 0' }}>status: {trip.status}</p>
-              <p style={{ margin: '8px 0' }}>visibility: {trip.visibility}</p>
-              <p style={{ margin: '8px 0' }}>legs: {trip.legs?.length ?? 0}</p>
-            </Link>
-            {trip.legs?.map((leg) => (
-              leg.media_urls.length > 0 && <PostComponent key={leg.id} title={trip.title} content={leg.caption || 'No caption'} tripLeg={leg} />
-            ))}
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
     </>
   );
 }
