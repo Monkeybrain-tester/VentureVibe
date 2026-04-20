@@ -1050,39 +1050,6 @@ async def unlike_leg(leg_id: str, payload: LikePayload):
     finally:
         conn.close()
 
-async def get_trip(trip_id: str, viewer_id: Optional[str] = None):
-    if USE_DUMMY_DATA:
-        trip = trips_db.get(trip_id)
-        if not trip:
-            raise HTTPException(status_code=404, detail="trip not found")
-        if not can_view_trip_record_dummy(
-            trip["user_id"],
-            viewer_id,
-            trip["visibility"],
-            bool(trip.get("is_hidden", False)),
-        ):
-            raise HTTPException(status_code=403, detail="not allowed to view trip")
-        return trip
-
-    conn = get_conn()
-    try:
-        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-            trip = fetch_trip_by_id_db(cur, trip_id, viewer_id)
-            if not trip:
-                raise HTTPException(status_code=404, detail="trip not found")
-
-            if not can_view_trip_record_db(
-                cur,
-                trip["user_id"],
-                viewer_id,
-                trip["visibility"],
-                bool(trip.get("is_hidden", False)),
-            ):
-                raise HTTPException(status_code=403, detail="not allowed to view trip")
-
-            return trip
-    finally:
-        conn.close()
 
 
 @app.get("/trips/{trip_id}/comments")
@@ -1178,7 +1145,7 @@ async def create_trip_comment(trip_id: str, payload: CommentCreate):
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             ensure_active_user_db(cur, payload.user_id)
 
-            trip = fetch_trip_by_id_db(cur, trip_id, viewer_id)
+            trip = fetch_trip_by_id_db(cur, trip_id, payload.user_id)
             if not trip:
                 raise HTTPException(status_code=404, detail="trip not found")
 
@@ -1723,7 +1690,7 @@ async def update_trip(trip_id: str, trip: TripCreate):
 
             conn.commit()
 
-            refreshed = fetch_trip_by_id_db(cur, trip_id, viewer_id)
+            refreshed = fetch_trip_by_id_db(cur, trip_id, trip.user_id)
             if not refreshed:
                 raise HTTPException(status_code=404, detail="trip not found after update")
             return refreshed
@@ -1765,7 +1732,7 @@ async def admin_hide_trip(trip_id: str, payload: AdminTripHidePayload):
             if not row:
                 raise HTTPException(status_code=404, detail="trip not found")
             conn.commit()
-            trip = fetch_trip_by_id_db(cur, trip_id, viewer_id)
+            trip = fetch_trip_by_id_db(cur, trip_id, payload.actor_id)
             return trip
     except Exception:
         conn.rollback()
