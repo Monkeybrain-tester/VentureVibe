@@ -872,6 +872,39 @@ async def get_profile_comments(user_id: str, viewer_id: Optional[str] = None):
 
 
 @app.get("/trips/{trip_id}")
+async def get_trip(trip_id: str, viewer_id: Optional[str] = None):
+    if USE_DUMMY_DATA:
+        trip = trips_db.get(trip_id)
+        if not trip:
+            raise HTTPException(status_code=404, detail="trip not found")
+        if not can_view_trip_record_dummy(
+            trip["user_id"],
+            viewer_id,
+            trip["visibility"],
+            bool(trip.get("is_hidden", False)),
+        ):
+            raise HTTPException(status_code=403, detail="not allowed to view trip")
+        return trip
+
+    conn = get_conn()
+    try:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            trip = fetch_trip_by_id_db(cur, trip_id, viewer_id)
+            if not trip:
+                raise HTTPException(status_code=404, detail="trip not found")
+
+            if not can_view_trip_record_db(
+                cur,
+                trip["user_id"],
+                viewer_id,
+                trip["visibility"],
+                bool(trip.get("is_hidden", False)),
+            ):
+                raise HTTPException(status_code=403, detail="not allowed to view trip")
+
+            return trip
+    finally:
+        conn.close()
 
 class LikePayload(BaseModel):
     user_id: str
