@@ -138,16 +138,9 @@ function TripCard({
             <div>start: {trip.start_location_name || 'unknown'}</div>
             <div>legs: {trip.legs?.length ?? 0}</div>
           </div>
-
-          {onToggleLike && (
-            <div style={{ marginTop: 12 }}>
-              <LikeButton
-                liked={Boolean(trip.liked_by_viewer)}
-                count={trip.like_count || 0}
-                onClick={() => onToggleLike(trip.id, Boolean(trip.liked_by_viewer))}
-              />
-            </div>
-          )}
+          <div style={{ marginTop: 12 }}>
+            <LikeButton tripId={trip.id} />
+          </div>               
         </div>
 
         <div

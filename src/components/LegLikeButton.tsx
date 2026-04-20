@@ -1,38 +1,39 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../AuthContext';
-import { fetchLikes, toggleLike } from '../lib/likes';
+import { fetchLegLikes, toggleLegLike } from '../lib/likes';
 
-type LikeButtonProps = {
-  tripId: string;
+type LegLikeButtonProps = {
+  legId: string;
 };
 
-export default function LikeButton({ tripId }: LikeButtonProps) {
+export default function LegLikeButton({ legId }: LegLikeButtonProps) {
   const { user } = useAuth();
   const [count, setCount] = useState(0);
   const [liked, setLiked] = useState(false);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    fetchLikes(tripId, user?.id).then((data) => {
+    fetchLegLikes(legId, user?.id).then((data) => {
       setCount(data.count);
       setLiked(data.liked);
     });
-  }, [tripId, user?.id]);
+  }, [legId, user?.id]);
 
   const handleClick = async (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (!user || loading) return;
-    setLoading(true);
-    try {
-      const data = await toggleLike(tripId, user.id);
-      setCount(data.count);
-      setLiked(data.liked);
-    } catch (err) {
-      console.error('Like failed', err);
-    } finally {
-      setLoading(false);
-    }
-  };
+  e.stopPropagation();
+  e.preventDefault(); // 👈 add this
+  if (!user || loading) return;
+  setLoading(true);
+  try {
+    const data = await toggleLegLike(legId, user.id);
+    setCount(data.count);
+    setLiked(data.liked);
+  } catch (err) {
+    console.error('Leg like failed', err);
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <button

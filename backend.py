@@ -2583,3 +2583,131 @@ async def get_map_trips(viewer_id: str):
             return results
     finally:
         conn.close()
+
+
+    # TRIP LIKE SYSTEM:
+
+class LikePayload(BaseModel):
+    user_id: str
+
+@app.post("/trips/{trip_id}/like")
+async def like_trip(trip_id: str, payload: LikePayload):
+    if USE_DUMMY_DATA:
+        return {"liked": True, "count": 1}
+
+    conn = get_conn()
+    try:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(
+                "SELECT id FROM trip_likes WHERE trip_id = %s AND user_id = %s",
+                (trip_id, payload.user_id)
+            )
+            existing = cur.fetchone()
+            if existing:
+                cur.execute(
+                    "DELETE FROM trip_likes WHERE trip_id = %s AND user_id = %s",
+                    (trip_id, payload.user_id)
+                )
+                liked = False
+            else:
+                cur.execute(
+                    "INSERT INTO trip_likes (trip_id, user_id) VALUES (%s, %s)",
+                    (trip_id, payload.user_id)
+                )
+                liked = True
+
+            cur.execute("SELECT COUNT(*) as count FROM trip_likes WHERE trip_id = %s", (trip_id,))
+            count = cur.fetchone()["count"]
+            conn.commit()
+            return {"liked": liked, "count": count}
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+@app.get("/trips/{trip_id}/likes")
+async def get_trip_likes(trip_id: str, viewer_id: Optional[str] = None):
+    if USE_DUMMY_DATA:
+        return {"count": 0, "liked": False}
+
+    conn = get_conn()
+    try:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute("SELECT COUNT(*) as count FROM trip_likes WHERE trip_id = %s", (trip_id,))
+            count = cur.fetchone()["count"]
+            liked = False
+            if viewer_id:
+                cur.execute(
+                    "SELECT 1 FROM trip_likes WHERE trip_id = %s AND user_id = %s",
+                    (trip_id, viewer_id)
+                )
+                liked = cur.fetchone() is not None
+            return {"count": count, "liked": liked}
+    finally:
+        conn.close()
+
+
+    # LEG LIKE SYSTEM:
+
+class LegLikePayload(BaseModel):
+    user_id: str
+
+@app.post("/legs/{leg_id}/like")
+async def like_leg(leg_id: str, payload: LegLikePayload):
+    if USE_DUMMY_DATA:
+        return {"liked": True, "count": 1}
+
+    conn = get_conn()
+    try:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(
+                "SELECT id FROM leg_likes WHERE leg_id = %s AND user_id = %s",
+                (leg_id, payload.user_id)
+            )
+            existing = cur.fetchone()
+            if existing:
+                cur.execute(
+                    "DELETE FROM leg_likes WHERE leg_id = %s AND user_id = %s",
+                    (leg_id, payload.user_id)
+                )
+                liked = False
+            else:
+                cur.execute(
+                    "INSERT INTO leg_likes (leg_id, user_id) VALUES (%s, %s)",
+                    (leg_id, payload.user_id)
+                )
+                liked = True
+
+            cur.execute("SELECT COUNT(*) as count FROM leg_likes WHERE leg_id = %s", (leg_id,))
+            count = cur.fetchone()["count"]
+            conn.commit()
+            return {"liked": liked, "count": count}
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+@app.get("/legs/{leg_id}/likes")
+async def get_leg_likes(leg_id: str, viewer_id: Optional[str] = None):
+    if USE_DUMMY_DATA:
+        return {"count": 0, "liked": False}
+
+    conn = get_conn()
+    try:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute("SELECT COUNT(*) as count FROM leg_likes WHERE leg_id = %s", (leg_id,))
+            count = cur.fetchone()["count"]
+            liked = False
+            if viewer_id:
+                cur.execute(
+                    "SELECT 1 FROM leg_likes WHERE leg_id = %s AND user_id = %s",
+                    (leg_id, viewer_id)
+                )
+                liked = cur.fetchone() is not None
+            return {"count": count, "liked": liked}
+    finally:
+        conn.close()

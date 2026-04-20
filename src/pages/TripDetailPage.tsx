@@ -7,15 +7,8 @@ import type { Trip } from '../types';
 import AppHeader from '../components/AppHeader';
 import Polyline from '../components/Polyline';
 import { createSignedMediaUrls } from '../lib/mediaUpload';
-import CommentsSection from '../components/CommentsSection';
 import LikeButton from '../components/LikeButton';
-
-type AdminTrip = Trip & {
-  is_hidden?: boolean;
-  hidden_reason?: string | null;
-  like_count?: number;
-  liked_by_viewer?: boolean;
-};
+import LegLikeButton from '../components/LegLikeButton';
 
 type SelectedPoint =
   | {
@@ -247,16 +240,9 @@ function TripDetailPage() {
             <p>status: {trip.status}</p>
             <p>visibility: {trip.visibility}</p>
             <p>start: {trip.start_location_name}</p>
-            {trip.is_hidden && (
-              <p style={{ color: '#facc15', fontWeight: 700 }}>
-                hidden by admin{trip.hidden_reason ? `: ${trip.hidden_reason}` : ''}
-              </p>
-            )}
-            <LikeButton
-              liked={Boolean(trip.liked_by_viewer)}
-              count={trip.like_count || 0}
-              onClick={toggleTripLike}
-            />
+            <div style={{ marginTop: 12 }}>  {/* 👈 add from here */}
+              <LikeButton tripId={trip.id} />
+            </div>
           </div>
 
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
@@ -411,6 +397,9 @@ function TripDetailPage() {
               <h3>{leg.location_name}</h3>
               <p>{formatDateOnly(leg.start_time)}</p>
               <p>{leg.caption}</p>
+              <div style={{ marginTop: 12 }}>
+                <LegLikeButton legId={leg.id ?? ''} />
+              </div>
 
               <div onClick={(e) => e.preventDefault()} style={{ marginBottom: 12 }}>
                 <LikeButton

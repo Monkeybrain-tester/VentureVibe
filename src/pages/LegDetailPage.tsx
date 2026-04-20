@@ -4,8 +4,7 @@ import AppHeader from '../components/AppHeader';
 import { apiFetch } from '../lib/api';
 import type { Trip } from '../types';
 import { createSignedMediaUrls } from '../lib/mediaUpload';
-import CommentsSection from '../components/CommentsSection';
-import LikeButton from '../components/LikeButton';
+import LegLikeButton from '../components/LegLikeButton';
 
 const isDummyMode = import.meta.env.VITE_APP_MODE === 'dummy';
 
@@ -106,6 +105,9 @@ function LegDetailPage() {
         <p><strong>trip:</strong> {trip.title}</p>
         <p><strong>date:</strong> {formatDateOnly(leg.start_time)}</p>
         {leg.caption && <p>{leg.caption}</p>}
+        <div style={{ marginTop: 12 }}>  {/* 👈 add from here */}
+          <LegLikeButton legId={legId} />
+        </div>
 
         <div style={{ marginBottom: 16 }}>
           <LikeButton
