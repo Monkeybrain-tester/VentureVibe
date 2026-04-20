@@ -51,6 +51,10 @@ function AppHeader() {
             <button>profile</button>
           </Link>
 
+          <Link to="/likes">
+            <button>likes</button>
+          </Link>
+
           <Link to="/trips/new">
             <button>make trip</button>
           </Link>

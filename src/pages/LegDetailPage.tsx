@@ -4,6 +4,8 @@ import AppHeader from '../components/AppHeader';
 import { apiFetch } from '../lib/api';
 import type { Trip } from '../types';
 import { createSignedMediaUrls } from '../lib/mediaUpload';
+import CommentsSection from '../components/CommentsSection';
+import LikeButton from '../components/LikeButton';
 
 const isDummyMode = import.meta.env.VITE_APP_MODE === 'dummy';
 
@@ -26,6 +28,7 @@ function LegDetailPage() {
   const { tripId, legId } = useParams();
   const [trip, setTrip] = useState<Trip | null>(null);
   const [signedMediaMap, setSignedMediaMap] = useState<Record<string, string>>({});
+  const [reloading, setReloading] = useState(0);
 
   useEffect(() => {
     async function loadTrip() {
@@ -39,7 +42,7 @@ function LegDetailPage() {
     }
 
     loadTrip();
-  }, [tripId]);
+  }, [tripId, reloading]);
 
   const leg = useMemo(() => {
     if (!trip || !legId) return null;
@@ -72,6 +75,21 @@ function LegDetailPage() {
     return signedMediaMap[pathOrUrl] || '';
   }
 
+  async function toggleLegLike() {
+    if (!leg?.id) return;
+
+    try {
+      await apiFetch(`/legs/${leg.id}/${leg.liked_by_viewer ? 'unlike' : 'like'}`, {
+        method: 'POST',
+        body: JSON.stringify({ user_id: trip?.user_id || '' }),
+      });
+      setReloading((v) => v + 1);
+    } catch (err) {
+      console.error(err);
+      alert('failed to update leg like');
+    }
+  }
+
   if (!trip) return <div style={{ padding: 24 }}>Loading trip...</div>;
   if (!leg) return <div style={{ padding: 24 }}>Leg not found.</div>;
 
@@ -88,6 +106,14 @@ function LegDetailPage() {
         <p><strong>trip:</strong> {trip.title}</p>
         <p><strong>date:</strong> {formatDateOnly(leg.start_time)}</p>
         {leg.caption && <p>{leg.caption}</p>}
+
+        <div style={{ marginBottom: 16 }}>
+          <LikeButton
+            liked={Boolean(leg.liked_by_viewer)}
+            count={leg.like_count || 0}
+            onClick={toggleLegLike}
+          />
+        </div>
 
         {(leg.media_urls || []).length > 0 ? (
           <div
@@ -142,6 +168,14 @@ function LegDetailPage() {
           </div>
         ) : (
           <p>No media for this leg yet.</p>
+        )}
+
+        {leg.id && (
+          <CommentsSection
+            mode="leg"
+            targetId={leg.id}
+            title="Leg Comments"
+          />
         )}
       </div>
     </>

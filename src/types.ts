@@ -21,6 +21,8 @@ export type TripLeg = {
   start_time: string;
   caption?: string;
   media_urls: string[];
+  like_count?: number;
+  liked_by_viewer?: boolean;
 };
 
 export type Trip = {
@@ -35,6 +37,8 @@ export type Trip = {
   visibility: Visibility;
   created_at?: string;
   legs: TripLeg[];
+  like_count?: number;
+  liked_by_viewer?: boolean;
 };
 
 export type FriendRequest = {

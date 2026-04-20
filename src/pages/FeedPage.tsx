@@ -11,6 +11,8 @@ type FeedTrip = Trip & {
   author_id?: string;
   author_username?: string;
   author_avatar_url?: string;
+  like_count?: number;
+  liked_by_viewer?: boolean;
 };
 
 const isDummyMode = import.meta.env.VITE_APP_MODE === 'dummy';
@@ -22,29 +24,20 @@ function FeedPage() {
   const [signedMediaMap, setSignedMediaMap] = useState<Record<string, string>>({});
   const [signedAvatarMap, setSignedAvatarMap] = useState<Record<string, string>>({});
 
-  useEffect(() => {
-    async function loadFeed() {
-      if (!user) return;
+  async function loadFeed() {
+    if (!user) return;
 
-      try {
-        const data = await apiFetch<FeedTrip[]>(`/feed/${user.id}`);
-        console.log(
-          'FEED raw data',
-          data.map((trip) => ({
-            title: trip.title,
-            author: trip.author_username,
-            avatar: trip.author_avatar_url,
-            authorId: trip.author_id,
-          }))
-        );
-        setTrips(data);
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setLoading(false);
-      }
+    try {
+      const data = await apiFetch<FeedTrip[]>(`/feed/${user.id}`);
+      setTrips(data);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
     }
+  }
 
+  useEffect(() => {
     loadFeed();
   }, [user]);
 
@@ -109,18 +102,31 @@ function FeedPage() {
           }
 
           result[path] = resolved;
-        } catch (err) {
-          console.error(`failed signing avatar for ${path}`, err);
+        } catch {
           result[path] = '';
         }
       }
 
-      console.log('FEED signedAvatarMap', result);
       setSignedAvatarMap(result);
     }
 
     signAvatars();
   }, [trips]);
+
+  async function toggleTripLike(tripId: string, liked: boolean) {
+    if (!user?.id) return;
+
+    try {
+      await apiFetch(`/trips/${tripId}/${liked ? 'unlike' : 'like'}`, {
+        method: 'POST',
+        body: JSON.stringify({ user_id: user.id }),
+      });
+      await loadFeed();
+    } catch (err) {
+      console.error(err);
+      alert('failed to update trip like');
+    }
+  }
 
   const tripCards = useMemo(() => {
     return trips.map((trip) => {
@@ -145,6 +151,7 @@ function FeedPage() {
           authorName={trip.author_username}
           authorAvatarUrl={avatarUrl}
           thumbnailUrl={thumbnailUrl}
+          onToggleLike={toggleTripLike}
         />
       );
     });

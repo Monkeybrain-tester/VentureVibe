@@ -7,6 +7,7 @@ import AppHeader from '../components/AppHeader';
 import TripCard from '../components/TripCard';
 import { createSignedMediaUrls } from '../lib/mediaUpload';
 import { createSignedAvatarUrl } from '../lib/avatarUpload';
+import CommentsSection from '../components/CommentsSection';
 
 const isDummyMode = import.meta.env.VITE_APP_MODE === 'dummy';
 
@@ -21,6 +22,21 @@ type ExtendedUserProfile = {
   website: string;
 };
 
+type AdminProfile = UserProfile & {
+  is_admin?: boolean;
+  is_suspended?: boolean;
+};
+
+const adminButtonStyle: React.CSSProperties = {
+  padding: '10px 16px',
+  background: '#facc15',
+  color: '#1a1a1a',
+  border: '1px solid #eab308',
+  borderRadius: 8,
+  fontWeight: 700,
+  cursor: 'pointer',
+};
+
 function ProfilePage() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -28,61 +44,81 @@ function ProfilePage() {
 
   const targetUserId = userId || (isDummyMode ? 'test-user-1' : user?.id);
 
-  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [profile, setProfile] = useState<AdminProfile | null>(null);
   const [extendedProfile, setExtendedProfile] = useState<ExtendedUserProfile | null>(null);
   const [trips, setTrips] = useState<Trip[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [signedMediaMap, setSignedMediaMap] = useState<Record<string, string>>({});
   const [signedAvatarUrl, setSignedAvatarUrl] = useState('');
+  const [viewerIsAdmin, setViewerIsAdmin] = useState(false);
 
   const isOwnProfile = isDummyMode || user?.id === targetUserId;
   const displayName =
     extendedProfile?.display_name?.trim() || profile?.username || 'Unknown User';
 
+  async function loadProfilePage() {
+    if (!targetUserId) {
+      setError('No user id available');
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const viewerId = isDummyMode ? 'test-user-1' : user?.id;
+
+      const [profileData, tripsData] = await Promise.all([
+        apiFetch<AdminProfile>(
+          `/profiles/${targetUserId}?viewer_id=${viewerId ?? ''}`
+        ),
+        apiFetch<Trip[]>(
+          `/profiles/${targetUserId}/trips?viewer_id=${viewerId ?? ''}`
+        ),
+      ]);
+
+      setProfile(profileData);
+      setTrips(tripsData);
+
+      try {
+        const extraData = await apiFetch<ExtendedUserProfile>(
+          `/user-profiles/${targetUserId}`
+        );
+        setExtendedProfile(extraData);
+      } catch (extraErr) {
+        console.error('failed loading extended user profile', extraErr);
+        setExtendedProfile(null);
+      }
+    } catch (err: any) {
+      console.error('PROFILE LOAD ERROR:', err);
+      const message = err?.message || err?.detail || JSON.stringify(err);
+      setError(message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
   useEffect(() => {
-    async function load() {
-      if (!targetUserId) {
-        setError('No user id available');
-        setLoading(false);
+    loadProfilePage();
+  }, [targetUserId, user?.id]);
+
+  useEffect(() => {
+    async function loadAdminState() {
+      if (!user?.id) {
+        setViewerIsAdmin(false);
         return;
       }
 
       try {
-        const viewerId = isDummyMode ? 'test-user-1' : user?.id;
-
-        const [profileData, tripsData] = await Promise.all([
-          apiFetch<UserProfile>(
-            `/profiles/${targetUserId}?viewer_id=${viewerId ?? ''}`
-          ),
-          apiFetch<Trip[]>(
-            `/profiles/${targetUserId}/trips?viewer_id=${viewerId ?? ''}`
-          ),
-        ]);
-
-        setProfile(profileData);
-        setTrips(tripsData);
-
-        try {
-          const extraData = await apiFetch<ExtendedUserProfile>(
-            `/user-profiles/${targetUserId}`
-          );
-          setExtendedProfile(extraData);
-        } catch (extraErr) {
-          console.error('failed loading extended user profile', extraErr);
-          setExtendedProfile(null);
-        }
-      } catch (err: any) {
-        console.error('PROFILE LOAD ERROR:', err);
-        const message = err?.message || err?.detail || JSON.stringify(err);
-        setError(message);
-      } finally {
-        setLoading(false);
+        const data = await apiFetch<{ is_admin: boolean }>(`/admin/me/${user.id}`);
+        setViewerIsAdmin(Boolean(data.is_admin));
+      } catch (err) {
+        console.error(err);
+        setViewerIsAdmin(false);
       }
     }
 
-    load();
-  }, [targetUserId, user?.id]);
+    loadAdminState();
+  }, [user?.id]);
 
   useEffect(() => {
     async function signMedia() {
@@ -135,6 +171,47 @@ function ProfilePage() {
     signAvatar();
   }, [profile?.avatar_url]);
 
+  async function toggleSuspended() {
+    if (!user?.id || !profile || isOwnProfile) return;
+
+    const nextSuspended = !profile.is_suspended;
+    const confirmed = window.confirm(
+      nextSuspended
+        ? 'Suspend this user?'
+        : 'Unsuspend this user?'
+    );
+    if (!confirmed) return;
+
+    try {
+      await apiFetch(`/admin/users/${profile.id}/suspend`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          actor_id: user.id,
+          is_suspended: nextSuspended,
+        }),
+      });
+      await loadProfilePage();
+    } catch (err) {
+      console.error(err);
+      alert('failed to update user suspension');
+    }
+  }
+
+  async function toggleTripLike(tripId: string, liked: boolean) {
+    if (!user?.id) return;
+
+    try {
+      await apiFetch(`/trips/${tripId}/${liked ? 'unlike' : 'like'}`, {
+        method: 'POST',
+        body: JSON.stringify({ user_id: user.id }),
+      });
+      await loadProfilePage();
+    } catch (err) {
+      console.error(err);
+      alert('failed to update trip like');
+    }
+  }
+
   const tripCards = useMemo(() => {
     return trips.map((trip) => {
       const firstMediaPath =
@@ -152,6 +229,7 @@ function ProfilePage() {
           authorName={displayName}
           authorAvatarUrl={signedAvatarUrl}
           thumbnailUrl={thumbnailUrl}
+          onToggleLike={toggleTripLike}
         />
       );
     });
@@ -245,14 +323,33 @@ function ProfilePage() {
               ) : profile.bio ? (
                 <p style={{ margin: '8px 0 0 0' }}>{profile.bio}</p>
               ) : null}
+
+              {profile.is_suspended && (
+                <p style={{ margin: '8px 0 0 0', color: '#facc15', fontWeight: 700 }}>
+                  suspended user
+                </p>
+              )}
             </div>
           </div>
 
-          {isOwnProfile && (
-            <button type="button" onClick={() => navigate('/profile/edit')}>
-              edit profile
-            </button>
-          )}
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+            {isOwnProfile && (
+              <>
+                <button type="button" onClick={() => navigate('/profile/edit')}>
+                  edit profile
+                </button>
+                <button type="button" onClick={() => navigate('/likes')}>
+                  likes
+                </button>
+              </>
+            )}
+
+            {viewerIsAdmin && !isOwnProfile && (
+              <button type="button" style={adminButtonStyle} onClick={toggleSuspended}>
+                {profile.is_suspended ? 'unsuspend user' : 'suspend user'}
+              </button>
+            )}
+          </div>
         </div>
 
         <h2>Trips</h2>
@@ -260,6 +357,15 @@ function ProfilePage() {
           <p>No trips yet.</p>
         ) : (
           <div style={{ display: 'grid', gap: 16 }}>{tripCards}</div>
+        )}
+
+        {profile.id && (
+          <CommentsSection
+            mode="profile"
+            targetId={profile.id}
+            title="Comments"
+            viewerIsAdmin={viewerIsAdmin}
+          />
         )}
       </div>
     </>

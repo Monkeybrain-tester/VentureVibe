@@ -7,6 +7,15 @@ import type { Trip } from '../types';
 import AppHeader from '../components/AppHeader';
 import Polyline from '../components/Polyline';
 import { createSignedMediaUrls } from '../lib/mediaUpload';
+import CommentsSection from '../components/CommentsSection';
+import LikeButton from '../components/LikeButton';
+
+type AdminTrip = Trip & {
+  is_hidden?: boolean;
+  hidden_reason?: string | null;
+  like_count?: number;
+  liked_by_viewer?: boolean;
+};
 
 type SelectedPoint =
   | {
@@ -45,27 +54,59 @@ function formatDateOnly(value?: string) {
   return date.toLocaleDateString();
 }
 
+const adminButtonStyle: React.CSSProperties = {
+  padding: '10px 16px',
+  background: '#facc15',
+  color: '#1a1a1a',
+  border: '1px solid #eab308',
+  borderRadius: 8,
+  fontWeight: 700,
+  cursor: 'pointer',
+};
+
 function TripDetailPage() {
   const { tripId } = useParams();
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [trip, setTrip] = useState<Trip | null>(null);
+
+  const [trip, setTrip] = useState<AdminTrip | null>(null);
   const [selectedPoint, setSelectedPoint] = useState<SelectedPoint | null>(null);
   const [signedMediaMap, setSignedMediaMap] = useState<Record<string, string>>({});
+  const [viewerIsAdmin, setViewerIsAdmin] = useState(false);
+
+  async function loadTrip() {
+    if (!tripId) return;
+    try {
+      const viewerQuery = user?.id ? `?viewer_id=${user.id}` : '';
+      const data = await apiFetch<AdminTrip>(`/trips/${tripId}${viewerQuery}`);
+      setTrip(data);
+    } catch (err) {
+      console.error(err);
+    }
+  }
 
   useEffect(() => {
-    async function loadTrip() {
-      if (!tripId) return;
+    loadTrip();
+  }, [tripId, user?.id]);
+
+  useEffect(() => {
+    async function loadAdminState() {
+      if (!user?.id) {
+        setViewerIsAdmin(false);
+        return;
+      }
+
       try {
-        const data = await apiFetch<Trip>(`/trips/${tripId}`);
-        setTrip(data);
+        const data = await apiFetch<{ is_admin: boolean }>(`/admin/me/${user.id}`);
+        setViewerIsAdmin(Boolean(data.is_admin));
       } catch (err) {
         console.error(err);
+        setViewerIsAdmin(false);
       }
     }
 
-    loadTrip();
-  }, [tripId]);
+    loadAdminState();
+  }, [user?.id]);
 
   useEffect(() => {
     async function signMedia() {
@@ -118,6 +159,78 @@ function TripDetailPage() {
     return signedMediaMap[pathOrUrl] || '';
   }
 
+  async function toggleTripLike() {
+    if (!user?.id || !trip) return;
+
+    try {
+      await apiFetch(`/trips/${trip.id}/${trip.liked_by_viewer ? 'unlike' : 'like'}`, {
+        method: 'POST',
+        body: JSON.stringify({ user_id: user.id }),
+      });
+      await loadTrip();
+    } catch (err) {
+      console.error(err);
+      alert('failed to update trip like');
+    }
+  }
+
+  async function toggleLegLike(legId: string, liked: boolean) {
+    if (!user?.id) return;
+
+    try {
+      await apiFetch(`/legs/${legId}/${liked ? 'unlike' : 'like'}`, {
+        method: 'POST',
+        body: JSON.stringify({ user_id: user.id }),
+      });
+      await loadTrip();
+    } catch (err) {
+      console.error(err);
+      alert('failed to update leg like');
+    }
+  }
+
+  async function toggleHidden() {
+    if (!user?.id || !trip) return;
+
+    const nextHidden = !trip.is_hidden;
+    const confirmed = window.confirm(
+      nextHidden
+        ? 'Hide this trip? It will stop showing to non-admin viewers.'
+        : 'Unhide this trip? It will be visible again based on its visibility setting.'
+    );
+    if (!confirmed) return;
+
+    try {
+      await apiFetch(`/admin/trips/${trip.id}/hide`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          actor_id: user.id,
+          is_hidden: nextHidden,
+          hidden_reason: nextHidden ? 'Hidden by admin' : null,
+        }),
+      });
+      await loadTrip();
+    } catch (err) {
+      console.error(err);
+      alert('failed to update trip visibility');
+    }
+  }
+
+  async function deleteTrip() {
+    if (!user?.id || !trip) return;
+    if (!window.confirm('Delete this trip permanently? This cannot be undone.')) return;
+
+    try {
+      await apiFetch(`/admin/trips/${trip.id}?actor_id=${user.id}`, {
+        method: 'DELETE',
+      });
+      navigate('/feed');
+    } catch (err) {
+      console.error(err);
+      alert('failed to delete trip');
+    }
+  }
+
   if (!trip) return <div style={{ padding: 24 }}>Loading trip...</div>;
 
   const isOwner = isDummyMode || user?.id === trip.user_id;
@@ -134,13 +247,34 @@ function TripDetailPage() {
             <p>status: {trip.status}</p>
             <p>visibility: {trip.visibility}</p>
             <p>start: {trip.start_location_name}</p>
+            {trip.is_hidden && (
+              <p style={{ color: '#facc15', fontWeight: 700 }}>
+                hidden by admin{trip.hidden_reason ? `: ${trip.hidden_reason}` : ''}
+              </p>
+            )}
+            <LikeButton
+              liked={Boolean(trip.liked_by_viewer)}
+              count={trip.like_count || 0}
+              onClick={toggleTripLike}
+            />
           </div>
 
-          {isOwner && (
-            <div>
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+            {isOwner && (
               <button onClick={() => navigate(`/trips/${trip.id}/edit`)}>edit trip</button>
-            </div>
-          )}
+            )}
+
+            {viewerIsAdmin && (
+              <>
+                <button style={adminButtonStyle} onClick={toggleHidden}>
+                  {trip.is_hidden ? 'unhide trip' : 'hide trip'}
+                </button>
+                <button style={adminButtonStyle} onClick={deleteTrip}>
+                  delete trip
+                </button>
+              </>
+            )}
+          </div>
         </div>
 
         {apiKey && routePoints.length > 0 ? (
@@ -278,6 +412,14 @@ function TripDetailPage() {
               <p>{formatDateOnly(leg.start_time)}</p>
               <p>{leg.caption}</p>
 
+              <div onClick={(e) => e.preventDefault()} style={{ marginBottom: 12 }}>
+                <LikeButton
+                  liked={Boolean(leg.liked_by_viewer)}
+                  count={leg.like_count || 0}
+                  onClick={() => toggleLegLike(String(leg.id), Boolean(leg.liked_by_viewer))}
+                />
+              </div>
+
               {(leg.media_urls || []).length > 0 && (
                 <div
                   style={{
@@ -333,6 +475,13 @@ function TripDetailPage() {
             </Link>
           ))}
         </div>
+
+        <CommentsSection
+          mode="trip"
+          targetId={trip.id}
+          title="Trip Comments"
+          viewerIsAdmin={viewerIsAdmin}
+        />
       </div>
     </>
   );

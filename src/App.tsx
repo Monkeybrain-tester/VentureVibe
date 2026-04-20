@@ -11,7 +11,7 @@ import './App.css';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './AuthContext';
 import LegDetailPage from './pages/LegDetailPage';
-
+import LikesPage from './pages/LikesPage';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
@@ -46,6 +46,15 @@ function App() {
           element={
             <ProtectedRoute>
               <ProfilePage />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/likes"
+          element={
+            <ProtectedRoute>
+              <LikesPage />
             </ProtectedRoute>
           }
         />

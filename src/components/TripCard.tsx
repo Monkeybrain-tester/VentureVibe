@@ -1,11 +1,14 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import type { Trip } from '../types';
+import LikeButton from './LikeButton';
 
 type TripWithAuthor = Trip & {
   author_id?: string;
   author_username?: string;
   author_avatar_url?: string;
+  like_count?: number;
+  liked_by_viewer?: boolean;
 };
 
 type TripCardProps = {
@@ -14,6 +17,7 @@ type TripCardProps = {
   authorName?: string;
   authorAvatarUrl?: string;
   thumbnailUrl?: string;
+  onToggleLike?: (tripId: string, liked: boolean) => void;
 };
 
 function fallbackInitial(name?: string) {
@@ -27,6 +31,7 @@ function TripCard({
   authorName,
   authorAvatarUrl,
   thumbnailUrl,
+  onToggleLike,
 }: TripCardProps) {
   const navigate = useNavigate();
   const [avatarFailed, setAvatarFailed] = useState(false);
@@ -36,8 +41,8 @@ function TripCard({
   const resolvedAuthorAvatar = authorAvatarUrl || trip.author_avatar_url || '';
 
   useEffect(() => {
-  setAvatarFailed(false);
-}, [resolvedAuthorAvatar]);
+    setAvatarFailed(false);
+  }, [resolvedAuthorAvatar]);
 
   const avatarNode =
     resolvedAuthorAvatar && !avatarFailed ? (
@@ -133,6 +138,16 @@ function TripCard({
             <div>start: {trip.start_location_name || 'unknown'}</div>
             <div>legs: {trip.legs?.length ?? 0}</div>
           </div>
+
+          {onToggleLike && (
+            <div style={{ marginTop: 12 }}>
+              <LikeButton
+                liked={Boolean(trip.liked_by_viewer)}
+                count={trip.like_count || 0}
+                onClick={() => onToggleLike(trip.id, Boolean(trip.liked_by_viewer))}
+              />
+            </div>
+          )}
         </div>
 
         <div
