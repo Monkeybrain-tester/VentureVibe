@@ -7,6 +7,8 @@ import type { Trip } from '../types';
 import AppHeader from '../components/AppHeader';
 import Polyline from '../components/Polyline';
 import { createSignedMediaUrls } from '../lib/mediaUpload';
+import LikeButton from '../components/LikeButton';
+import LegLikeButton from '../components/LegLikeButton';
 
 type SelectedPoint =
   | {
@@ -134,6 +136,9 @@ function TripDetailPage() {
             <p>status: {trip.status}</p>
             <p>visibility: {trip.visibility}</p>
             <p>start: {trip.start_location_name}</p>
+            <div style={{ marginTop: 12 }}>  {/* 👈 add from here */}
+              <LikeButton tripId={trip.id} />
+            </div>
           </div>
 
           {isOwner && (
@@ -277,6 +282,9 @@ function TripDetailPage() {
               <h3>{leg.location_name}</h3>
               <p>{formatDateOnly(leg.start_time)}</p>
               <p>{leg.caption}</p>
+              <div style={{ marginTop: 12 }}>
+                <LegLikeButton legId={leg.id ?? ''} />
+              </div>
 
               {(leg.media_urls || []).length > 0 && (
                 <div

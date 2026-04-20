@@ -1,6 +1,7 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import type { Trip } from '../types';
+import LikeButton from './LikeButton';
 
 type TripWithAuthor = Trip & {
   author_id?: string;
@@ -133,6 +134,9 @@ function TripCard({
             <div>start: {trip.start_location_name || 'unknown'}</div>
             <div>legs: {trip.legs?.length ?? 0}</div>
           </div>
+          <div style={{ marginTop: 12 }}>
+            <LikeButton tripId={trip.id} />
+          </div>               
         </div>
 
         <div
